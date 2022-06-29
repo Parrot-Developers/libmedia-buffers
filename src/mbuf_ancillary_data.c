@@ -30,6 +30,7 @@
 
 #include <errno.h>
 #include <stdio.h>
+#include <stdlib.h>
 
 #define ULOG_TAG mbuf_ancillary_data
 #include <ulog.h>

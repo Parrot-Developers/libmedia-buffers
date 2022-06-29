@@ -211,6 +211,18 @@ MBUF_API int
 mbuf_mem_get_data(struct mbuf_mem *mem, void **data, size_t *capacity);
 
 
+/**
+ * Get the memory-related information.
+ *
+ * @param mem: The memory.
+ * @param info: [out] The structure filled by this call.
+ *
+ * @return 0 on success, negative errno on error.
+ */
+MBUF_API int mbuf_mem_get_info(struct mbuf_mem *mem,
+			       struct mbuf_mem_info *info);
+
+
 #ifdef __cplusplus
 }
 #endif /* __cplusplus */

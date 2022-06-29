@@ -28,6 +28,7 @@
 
 #include <errno.h>
 #include <stdbool.h>
+#include <stdlib.h>
 
 #define ULOG_TAG mbuf_mem
 #include <ulog.h>
@@ -367,5 +368,16 @@ int mbuf_mem_get_data(struct mbuf_mem *mem, void **data, size_t *capacity)
 
 	*data = mem->data;
 	*capacity = mem->size;
+	return 0;
+}
+
+
+int mbuf_mem_get_info(struct mbuf_mem *mem, struct mbuf_mem_info *info)
+{
+	ULOG_ERRNO_RETURN_ERR_IF(!mem, EINVAL);
+	ULOG_ERRNO_RETURN_ERR_IF(!info, EINVAL);
+
+	info->cookie = mem->cookie;
+	info->specific = mem->specific;
 	return 0;
 }

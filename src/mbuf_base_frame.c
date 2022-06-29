@@ -28,6 +28,7 @@
 #include "mbuf_internal.h"
 
 #include <errno.h>
+#include <stdlib.h>
 
 #include <libpomp.h>
 #include <video-metadata/vmeta.h>

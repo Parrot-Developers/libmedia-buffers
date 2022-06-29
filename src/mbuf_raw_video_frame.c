@@ -154,7 +154,28 @@ int mbuf_raw_video_frame_set_frame_info(struct mbuf_raw_video_frame *frame,
 	ULOG_ERRNO_RETURN_ERR_IF(!frame_info, EINVAL);
 	ULOG_ERRNO_RETURN_ERR_IF(mbuf_base_frame_is_finalized(&frame->base),
 				 EBUSY);
+
+	/* Check that the change in frame_info will not lead to a bad number of
+	 * planes */
+	unsigned int new_nplanes =
+		vdef_get_raw_frame_plane_count(&frame_info->format);
+	unsigned int filled_planes = 0;
+	for (int i = frame->nplanes; i >= 0; i--) {
+		if (frame->planes[i].mem != NULL) {
+			filled_planes = i + 1;
+			break;
+		}
+	}
+	if (filled_planes > new_nplanes) {
+		ULOGE("new frame info has only %u planes, "
+		      "while this frame already has %u set",
+		      new_nplanes,
+		      filled_planes);
+		return -EINVAL;
+	}
+
 	frame->info = *frame_info;
+	frame->nplanes = new_nplanes;
 	return 0;
 }
 
@@ -181,7 +202,7 @@ int mbuf_raw_video_frame_set_plane(struct mbuf_raw_video_frame *frame,
 
 	ULOG_ERRNO_RETURN_ERR_IF(!frame, EINVAL);
 	ULOG_ERRNO_RETURN_ERR_IF(!mem, EINVAL);
-	ULOG_ERRNO_RETURN_ERR_IF(plane > frame->nplanes, EINVAL);
+	ULOG_ERRNO_RETURN_ERR_IF(plane >= frame->nplanes, EINVAL);
 	ULOG_ERRNO_RETURN_ERR_IF(mbuf_base_frame_is_finalized(&frame->base),
 				 EBUSY);
 
@@ -276,7 +297,7 @@ int mbuf_raw_video_frame_get_plane_mem_info(struct mbuf_raw_video_frame *frame,
 
 	ULOG_ERRNO_RETURN_ERR_IF(!frame, EINVAL);
 	ULOG_ERRNO_RETURN_ERR_IF(!info, EINVAL);
-	ULOG_ERRNO_RETURN_ERR_IF(plane > frame->nplanes, EINVAL);
+	ULOG_ERRNO_RETURN_ERR_IF(plane >= frame->nplanes, EINVAL);
 	ULOG_ERRNO_RETURN_ERR_IF(!mbuf_base_frame_is_finalized(&frame->base),
 				 EBUSY);
 
@@ -298,7 +319,7 @@ int mbuf_raw_video_frame_get_plane(struct mbuf_raw_video_frame *frame,
 	ULOG_ERRNO_RETURN_ERR_IF(!len, EINVAL);
 	*len = 0;
 	ULOG_ERRNO_RETURN_ERR_IF(!frame, EINVAL);
-	ULOG_ERRNO_RETURN_ERR_IF(plane > frame->nplanes, EINVAL);
+	ULOG_ERRNO_RETURN_ERR_IF(plane >= frame->nplanes, EINVAL);
 	ULOG_ERRNO_RETURN_ERR_IF(!mbuf_base_frame_is_finalized(&frame->base),
 				 EBUSY);
 
@@ -336,7 +357,7 @@ int mbuf_raw_video_frame_get_rw_plane(struct mbuf_raw_video_frame *frame,
 	ULOG_ERRNO_RETURN_ERR_IF(!len, EINVAL);
 	*len = 0;
 	ULOG_ERRNO_RETURN_ERR_IF(!frame, EINVAL);
-	ULOG_ERRNO_RETURN_ERR_IF(plane > frame->nplanes, EINVAL);
+	ULOG_ERRNO_RETURN_ERR_IF(plane >= frame->nplanes, EINVAL);
 	ULOG_ERRNO_RETURN_ERR_IF(!mbuf_base_frame_is_finalized(&frame->base),
 				 EBUSY);
 

@@ -32,28 +32,51 @@
 /* For the stride test, we will set the test frames to have a stride of 2*width
  * on the Y plane, ensuring that their packed size will be width*height*2, while
  * the stride-less frame will properly have a size of width*height*3/2 */
-
 static void init_frame_info(struct vdef_raw_frame *info, bool large_stride)
 {
 	memset(info, 0, sizeof(*info));
 	info->format = vdef_i420;
 	info->info.resolution.width = MBUF_TEST_WIDTH;
 	info->info.resolution.height = MBUF_TEST_HEIGHT;
-	if (large_stride)
-		info->plane_stride[0] = 2 * MBUF_TEST_WIDTH;
-	else
-		info->plane_stride[0] = MBUF_TEST_WIDTH;
-	info->plane_stride[1] = MBUF_TEST_WIDTH;
-	info->plane_stride[2] = MBUF_TEST_WIDTH;
+	info->plane_stride[0] = MBUF_TEST_WIDTH;
+	info->plane_stride[1] = MBUF_TEST_WIDTH / 2;
+	info->plane_stride[2] = MBUF_TEST_WIDTH / 2;
+	if (large_stride) {
+		for (int i = 0; i < 3; i++)
+			info->plane_stride[i] *= 2;
+	}
+}
+
+static size_t get_frame_size(struct vdef_raw_frame *info)
+{
+	size_t plane_size[VDEF_RAW_MAX_PLANE_COUNT] = {0};
+	size_t plane_stride[VDEF_RAW_MAX_PLANE_COUNT] = {0};
+	int ret = vdef_calc_raw_frame_size(&info->format,
+					   &info->info.resolution,
+					   plane_stride,
+					   NULL,
+					   NULL,
+					   NULL,
+					   plane_size,
+					   NULL);
+	if (ret < 0)
+		return 0;
+	size_t total = 0;
+	for (int i = 0; i < VDEF_RAW_MAX_PLANE_COUNT; i++)
+		total += plane_size[i];
+	return total;
 }
 
 
 /* Create a mbuf pool suitable for all tests */
 static struct mbuf_pool *create_pool()
 {
+	struct vdef_raw_frame tmp;
+	init_frame_info(&tmp, true);
+	size_t max_frame_size = get_frame_size(&tmp);
 	struct mbuf_pool *pool;
 	int ret = mbuf_pool_new(mbuf_mem_generic_impl,
-				MBUF_TEST_WIDTH * MBUF_TEST_HEIGHT * 10,
+				max_frame_size * 10,
 				0,
 				MBUF_POOL_LOW_MEM_GROW,
 				0,
@@ -143,7 +166,7 @@ static void set_planes(struct mbuf_raw_video_frame *frame,
 			if (plane_stride[i] < frame_info.plane_stride[i])
 				memset(dst + plane_stride[i],
 				       i + 20,
-				       frame_info.plane_stride[i] +
+				       frame_info.plane_stride[i] -
 					       plane_stride[i]);
 		}
 		ret = mbuf_raw_video_frame_set_plane(
@@ -427,6 +450,7 @@ static void test_mbuf_raw_video_frame_pool_origin(void)
 	bool any, all;
 
 	init_frame_info(&frame_info, false);
+	size_t frame_size = get_frame_size(&frame_info);
 
 	/* Create the pools/mem/frames */
 	pool = create_pool();
@@ -439,11 +463,9 @@ static void test_mbuf_raw_video_frame_pool_origin(void)
 	CU_ASSERT_EQUAL(ret, 0);
 	ret = mbuf_pool_get(pool, &mem_pool);
 	CU_ASSERT_EQUAL(ret, 0);
-	ret = mbuf_mem_generic_new(MBUF_TEST_WIDTH * MBUF_TEST_HEIGHT * 10,
-				   &mem_non_pool1);
+	ret = mbuf_mem_generic_new(frame_size, &mem_non_pool1);
 	CU_ASSERT_EQUAL(ret, 0);
-	ret = mbuf_mem_generic_new(MBUF_TEST_WIDTH * MBUF_TEST_HEIGHT * 10,
-				   &mem_non_pool2);
+	ret = mbuf_mem_generic_new(frame_size, &mem_non_pool2);
 	CU_ASSERT_EQUAL(ret, 0);
 
 	/* Fill & finalize the frames:
@@ -511,6 +533,7 @@ static void test_mbuf_raw_video_frame_bad_args(void)
 	struct vmeta_frame *meta, *out_meta;
 	bool any, all;
 	struct mbuf_mem_info mem_info;
+	unsigned int plane_count;
 
 	init_frame_info(&frame_info, false);
 
@@ -539,6 +562,7 @@ static void test_mbuf_raw_video_frame_bad_args(void)
 	CU_ASSERT_EQUAL(ret, 0);
 	ret = vmeta_frame_new(VMETA_FRAME_TYPE_PROTO, &meta);
 	CU_ASSERT_EQUAL(ret, 0);
+	plane_count = vdef_get_raw_frame_plane_count(&frame_info.format);
 
 	/* Add planes, finalize frame & get a plane for reader API tests */
 	set_planes(frame, mem, NULL, NULL);
@@ -563,7 +587,7 @@ static void test_mbuf_raw_video_frame_bad_args(void)
 	ret = mbuf_raw_video_frame_set_plane(NULL, 0, mem, 0, plane_size);
 	CU_ASSERT_EQUAL(ret, -EINVAL);
 	ret = mbuf_raw_video_frame_set_plane(
-		frame, VDEF_RAW_MAX_PLANE_COUNT + 1, mem, 0, plane_size);
+		frame, plane_count, mem, 0, plane_size);
 	CU_ASSERT_EQUAL(ret, -EINVAL);
 	ret = mbuf_raw_video_frame_set_plane(frame, 0, NULL, 0, plane_size);
 	CU_ASSERT_EQUAL(ret, -EINVAL);
@@ -580,14 +604,13 @@ static void test_mbuf_raw_video_frame_bad_args(void)
 	ret = mbuf_raw_video_frame_get_plane_mem_info(NULL, 0, &mem_info);
 	CU_ASSERT_EQUAL(ret, -EINVAL);
 	ret = mbuf_raw_video_frame_get_plane_mem_info(
-		frame, VDEF_RAW_MAX_PLANE_COUNT + 1, &mem_info);
+		frame, plane_count, &mem_info);
 	CU_ASSERT_EQUAL(ret, -EINVAL);
 	ret = mbuf_raw_video_frame_get_plane_mem_info(frame, 0, NULL);
 	CU_ASSERT_EQUAL(ret, -EINVAL);
 	ret = mbuf_raw_video_frame_get_plane(NULL, 0, &data, &len);
 	CU_ASSERT_EQUAL(ret, -EINVAL);
-	ret = mbuf_raw_video_frame_get_plane(
-		frame, VDEF_RAW_MAX_PLANE_COUNT + 1, &data, &len);
+	ret = mbuf_raw_video_frame_get_plane(frame, plane_count, &data, &len);
 	CU_ASSERT_EQUAL(ret, -EINVAL);
 	ret = mbuf_raw_video_frame_get_plane(frame, 0, NULL, &len);
 	CU_ASSERT_EQUAL(ret, -EINVAL);
@@ -596,8 +619,7 @@ static void test_mbuf_raw_video_frame_bad_args(void)
 	data = (void *)(intptr_t)1; /* Make sure data is non-null */
 	ret = mbuf_raw_video_frame_release_plane(NULL, 0, data);
 	CU_ASSERT_EQUAL(ret, -EINVAL);
-	ret = mbuf_raw_video_frame_release_plane(
-		frame, VDEF_RAW_MAX_PLANE_COUNT + 1, data);
+	ret = mbuf_raw_video_frame_release_plane(frame, plane_count, data);
 	CU_ASSERT_EQUAL(ret, -EINVAL);
 	ret = mbuf_raw_video_frame_release_plane(frame, 0, data);
 	CU_ASSERT_EQUAL(ret, -EINVAL);
@@ -606,15 +628,14 @@ static void test_mbuf_raw_video_frame_bad_args(void)
 	ret = mbuf_raw_video_frame_get_rw_plane(frame, 0, NULL, &len);
 	CU_ASSERT_EQUAL(ret, -EINVAL);
 	ret = mbuf_raw_video_frame_get_rw_plane(
-		frame, VDEF_RAW_MAX_PLANE_COUNT + 1, &rwdata, &len);
+		frame, plane_count, &rwdata, &len);
 	CU_ASSERT_EQUAL(ret, -EINVAL);
 	ret = mbuf_raw_video_frame_get_rw_plane(frame, 0, &rwdata, NULL);
 	CU_ASSERT_EQUAL(ret, -EINVAL);
 	rwdata = (void *)(intptr_t)1; /* Make sure rwdata is non-null */
 	ret = mbuf_raw_video_frame_release_rw_plane(NULL, 0, rwdata);
 	CU_ASSERT_EQUAL(ret, -EINVAL);
-	ret = mbuf_raw_video_frame_release_rw_plane(
-		frame, VDEF_RAW_MAX_PLANE_COUNT + 1, rwdata);
+	ret = mbuf_raw_video_frame_release_rw_plane(frame, plane_count, rwdata);
 	CU_ASSERT_EQUAL(ret, -EINVAL);
 	ret = mbuf_raw_video_frame_release_rw_plane(frame, 0, rwdata);
 	CU_ASSERT_EQUAL(ret, -EINVAL);
@@ -733,6 +754,11 @@ static void test_mbuf_raw_video_frame_bad_state(void)
 
 	/* Add the planes to the frame */
 	set_planes(frame, mem, NULL, NULL);
+
+	/* Setting the frame back to nv12 should fail as there are already three
+	 * planes set */
+	ret = mbuf_raw_video_frame_set_frame_info(frame, &frame_info_nv12);
+	CU_ASSERT_EQUAL(ret, -EINVAL);
 
 	/* Buffer is not finalized yet, getters should fail */
 	ret = mbuf_raw_video_frame_get_plane(frame, 0, &data, &len);
@@ -909,11 +935,11 @@ static void test_mbuf_raw_video_frame_queue_flush(void)
 	struct test_mbuf_raw_video_frame_queue_flush_userdata ud = {
 		.freed = false,
 	};
-	size_t datalen = MBUF_TEST_WIDTH * MBUF_TEST_HEIGHT * 3 / 2;
-	void *data = malloc(datalen);
-	CU_ASSERT_PTR_NOT_NULL(data);
 
 	init_frame_info(&frame_info, false);
+	size_t datalen = get_frame_size(&frame_info);
+	void *data = malloc(datalen);
+	CU_ASSERT_PTR_NOT_NULL(data);
 
 	/* Create the frame and the queue used by the test */
 	ret = mbuf_raw_video_frame_new(&frame_info, &frame);
