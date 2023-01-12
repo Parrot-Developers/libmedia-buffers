@@ -522,6 +522,47 @@ out:
 }
 
 
+int mbuf_base_frame_queue_peek_at(struct mbuf_base_frame_queue *queue,
+				  unsigned int index,
+				  void **out_frame)
+{
+	int ret;
+	struct mbuf_frame_holder *holder = NULL;
+	unsigned int i = 0;
+	bool found = false;
+
+	pthread_mutex_lock(&queue->lock);
+
+	if (queue->nframes == 0) {
+		ret = -EAGAIN;
+		goto out;
+	}
+
+	list_walk_entry_forward(&queue->frames, holder, node)
+	{
+		if (i == index) {
+			found = true;
+			break;
+		}
+		i++;
+	}
+
+	if (!found) {
+		ret = -ENOENT;
+		goto out;
+	}
+
+	ret = mbuf_base_frame_ref(holder->base);
+	if (ret != 0)
+		goto out;
+	*out_frame = holder->base->parent;
+
+out:
+	pthread_mutex_unlock(&queue->lock);
+	return ret;
+}
+
+
 int mbuf_base_frame_queue_pop(struct mbuf_base_frame_queue *queue,
 			      void **out_frame)
 {
@@ -571,4 +612,16 @@ int mbuf_base_frame_queue_get_event(struct mbuf_base_frame_queue *queue,
 	*out_evt = queue->event;
 
 	return 0;
+}
+
+
+int mbuf_base_frame_queue_get_count(struct mbuf_base_frame_queue *queue)
+{
+	int ret;
+
+	pthread_mutex_lock(&queue->lock);
+	ret = queue->nframes;
+	pthread_mutex_unlock(&queue->lock);
+
+	return ret;
 }

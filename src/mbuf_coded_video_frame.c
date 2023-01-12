@@ -776,6 +776,27 @@ int mbuf_coded_video_frame_queue_peek(
 }
 
 
+int mbuf_coded_video_frame_queue_peek_at(
+	struct mbuf_coded_video_frame_queue *queue,
+	unsigned int index,
+	struct mbuf_coded_video_frame **out_frame)
+{
+	ULOG_ERRNO_RETURN_ERR_IF(!out_frame, EINVAL);
+	*out_frame = NULL;
+	ULOG_ERRNO_RETURN_ERR_IF(!queue, EINVAL);
+
+	void *tmp_frame;
+	int ret =
+		mbuf_base_frame_queue_peek_at(&queue->base, index, &tmp_frame);
+
+	if (ret == 0)
+		*out_frame = tmp_frame;
+	else
+		*out_frame = NULL;
+	return ret;
+}
+
+
 int mbuf_coded_video_frame_queue_pop(struct mbuf_coded_video_frame_queue *queue,
 				     struct mbuf_coded_video_frame **out_frame)
 {
@@ -812,6 +833,15 @@ int mbuf_coded_video_frame_queue_get_event(
 	ULOG_ERRNO_RETURN_ERR_IF(!queue, EINVAL);
 
 	return mbuf_base_frame_queue_get_event(&queue->base, out_evt);
+}
+
+
+int mbuf_coded_video_frame_queue_get_count(
+	struct mbuf_coded_video_frame_queue *queue)
+{
+	ULOG_ERRNO_RETURN_ERR_IF(!queue, EINVAL);
+
+	return mbuf_base_frame_queue_get_count(&queue->base);
 }
 
 

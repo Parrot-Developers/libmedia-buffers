@@ -133,6 +133,10 @@ int mbuf_base_frame_queue_push(struct mbuf_base_frame_queue *queue,
 int mbuf_base_frame_queue_peek(struct mbuf_base_frame_queue *queue,
 			       void **out_frame);
 
+int mbuf_base_frame_queue_peek_at(struct mbuf_base_frame_queue *queue,
+				  unsigned int index,
+				  void **out_frame);
+
 int mbuf_base_frame_queue_pop(struct mbuf_base_frame_queue *queue,
 			      void **out_frame);
 
@@ -140,5 +144,7 @@ int mbuf_base_frame_queue_flush(struct mbuf_base_frame_queue *queue);
 
 int mbuf_base_frame_queue_get_event(struct mbuf_base_frame_queue *queue,
 				    struct pomp_evt **out_evt);
+
+int mbuf_base_frame_queue_get_count(struct mbuf_base_frame_queue *queue);
 
 #endif /* _MBUF_BASE_FRAME_H_ */

@@ -677,6 +677,10 @@ static void test_mbuf_raw_video_frame_bad_args(void)
 	CU_ASSERT_EQUAL(ret, -EINVAL);
 	ret = mbuf_raw_video_frame_queue_peek(queue, NULL);
 	CU_ASSERT_EQUAL(ret, -EINVAL);
+	ret = mbuf_raw_video_frame_queue_peek_at(NULL, 0, &frame_cp);
+	CU_ASSERT_EQUAL(ret, -EINVAL);
+	ret = mbuf_raw_video_frame_queue_peek_at(queue, 0, NULL);
+	CU_ASSERT_EQUAL(ret, -EINVAL);
 	ret = mbuf_raw_video_frame_queue_pop(NULL, &frame_cp);
 	CU_ASSERT_EQUAL(ret, -EINVAL);
 	ret = mbuf_raw_video_frame_queue_pop(queue, NULL);
@@ -686,6 +690,8 @@ static void test_mbuf_raw_video_frame_bad_args(void)
 	ret = mbuf_raw_video_frame_queue_get_event(NULL, &evt);
 	CU_ASSERT_EQUAL(ret, -EINVAL);
 	ret = mbuf_raw_video_frame_queue_get_event(queue, NULL);
+	CU_ASSERT_EQUAL(ret, -EINVAL);
+	ret = mbuf_raw_video_frame_queue_get_count(NULL);
 	CU_ASSERT_EQUAL(ret, -EINVAL);
 	ret = mbuf_raw_video_frame_queue_destroy(NULL);
 	CU_ASSERT_EQUAL(ret, -EINVAL);
@@ -841,8 +847,12 @@ static void test_mbuf_raw_video_frame_queue(void)
 	/* Peek / Pop from empty queue should fail */
 	ret = mbuf_raw_video_frame_queue_peek(queue, &out_frame);
 	CU_ASSERT_EQUAL(ret, -EAGAIN);
+	ret = mbuf_raw_video_frame_queue_peek_at(queue, 0, &out_frame);
+	CU_ASSERT_EQUAL(ret, -EAGAIN);
 	ret = mbuf_raw_video_frame_queue_pop(queue, &out_frame);
 	CU_ASSERT_EQUAL(ret, -EAGAIN);
+	ret = mbuf_raw_video_frame_queue_get_count(queue);
+	CU_ASSERT_EQUAL(ret, 0);
 
 	/* Pushing a non-finalized frame should fail */
 	ret = mbuf_raw_video_frame_queue_push(queue, frame1);
@@ -866,11 +876,27 @@ static void test_mbuf_raw_video_frame_queue(void)
 	CU_ASSERT_EQUAL(ret, 0);
 	ret = mbuf_raw_video_frame_queue_push(queue, frame3);
 	CU_ASSERT_EQUAL(ret, 0);
+	ret = mbuf_raw_video_frame_queue_get_count(queue);
+	CU_ASSERT_EQUAL(ret, 3);
 
 	/* Peek and compare to frame 1 */
 	ret = mbuf_raw_video_frame_queue_peek(queue, &out_frame);
 	CU_ASSERT_EQUAL(ret, 0);
 	CU_ASSERT_PTR_EQUAL(out_frame, frame1);
+	ret = mbuf_raw_video_frame_unref(out_frame);
+	CU_ASSERT_EQUAL(ret, 0);
+
+	/* Peek at index 0 and compare to frame 1 */
+	ret = mbuf_raw_video_frame_queue_peek_at(queue, 0, &out_frame);
+	CU_ASSERT_EQUAL(ret, 0);
+	CU_ASSERT_PTR_EQUAL(out_frame, frame1);
+	ret = mbuf_raw_video_frame_unref(out_frame);
+	CU_ASSERT_EQUAL(ret, 0);
+
+	/* Peek at index 1 and compare to frame 2 */
+	ret = mbuf_raw_video_frame_queue_peek_at(queue, 1, &out_frame);
+	CU_ASSERT_EQUAL(ret, 0);
+	CU_ASSERT_PTR_EQUAL(out_frame, frame2);
 	ret = mbuf_raw_video_frame_unref(out_frame);
 	CU_ASSERT_EQUAL(ret, 0);
 
@@ -880,6 +906,8 @@ static void test_mbuf_raw_video_frame_queue(void)
 	CU_ASSERT_PTR_EQUAL(out_frame, frame1);
 	ret = mbuf_raw_video_frame_unref(out_frame);
 	CU_ASSERT_EQUAL(ret, 0);
+	ret = mbuf_raw_video_frame_queue_get_count(queue);
+	CU_ASSERT_EQUAL(ret, 2);
 
 	/* Peek and compare to frame 2 */
 	ret = mbuf_raw_video_frame_queue_peek(queue, &out_frame);
@@ -887,13 +915,33 @@ static void test_mbuf_raw_video_frame_queue(void)
 	CU_ASSERT_PTR_EQUAL(out_frame, frame2);
 	ret = mbuf_raw_video_frame_unref(out_frame);
 	CU_ASSERT_EQUAL(ret, 0);
+	ret = mbuf_raw_video_frame_queue_get_count(queue);
+	CU_ASSERT_EQUAL(ret, 2);
+
+	/* Peek at index 0 and compare to frame 2 */
+	ret = mbuf_raw_video_frame_queue_peek_at(queue, 0, &out_frame);
+	CU_ASSERT_EQUAL(ret, 0);
+	CU_ASSERT_PTR_EQUAL(out_frame, frame2);
+	ret = mbuf_raw_video_frame_unref(out_frame);
+	CU_ASSERT_EQUAL(ret, 0);
+
+	/* Peek at index 1 and compare to frame 3 */
+	ret = mbuf_raw_video_frame_queue_peek_at(queue, 1, &out_frame);
+	CU_ASSERT_EQUAL(ret, 0);
+	CU_ASSERT_PTR_EQUAL(out_frame, frame3);
+	ret = mbuf_raw_video_frame_unref(out_frame);
+	CU_ASSERT_EQUAL(ret, 0);
 
 	/* Flush */
 	ret = mbuf_raw_video_frame_queue_flush(queue);
 	CU_ASSERT_EQUAL(ret, 0);
+	ret = mbuf_raw_video_frame_queue_get_count(queue);
+	CU_ASSERT_EQUAL(ret, 0);
 
 	/* Peek / Pop from flushed queue should fail */
 	ret = mbuf_raw_video_frame_queue_peek(queue, &out_frame);
+	CU_ASSERT_EQUAL(ret, -EAGAIN);
+	ret = mbuf_raw_video_frame_queue_peek_at(queue, 0, &out_frame);
 	CU_ASSERT_EQUAL(ret, -EAGAIN);
 	ret = mbuf_raw_video_frame_queue_pop(queue, &out_frame);
 	CU_ASSERT_EQUAL(ret, -EAGAIN);
@@ -1169,6 +1217,8 @@ static void test_mbuf_raw_video_frame_queue_filter(void)
 	CU_ASSERT_EQUAL(ret, -EPROTO);
 	ret = mbuf_raw_video_frame_queue_push(queue_none, frame2);
 	CU_ASSERT_EQUAL(ret, -EPROTO);
+	ret = mbuf_raw_video_frame_queue_get_count(queue_none);
+	CU_ASSERT_EQUAL(ret, 0);
 	ret = mbuf_raw_video_frame_queue_flush(queue_none);
 	CU_ASSERT_EQUAL(ret, 0);
 
@@ -1177,6 +1227,8 @@ static void test_mbuf_raw_video_frame_queue_filter(void)
 	CU_ASSERT_EQUAL(ret, 0);
 	ret = mbuf_raw_video_frame_queue_push(queue_all, frame2);
 	CU_ASSERT_EQUAL(ret, 0);
+	ret = mbuf_raw_video_frame_queue_get_count(queue_all);
+	CU_ASSERT_EQUAL(ret, 2);
 	ret = mbuf_raw_video_frame_queue_flush(queue_all);
 	CU_ASSERT_EQUAL(ret, 0);
 
@@ -1185,6 +1237,8 @@ static void test_mbuf_raw_video_frame_queue_filter(void)
 	CU_ASSERT_EQUAL(ret, -EPROTO);
 	ret = mbuf_raw_video_frame_queue_push(queue_packed, frame2);
 	CU_ASSERT_EQUAL(ret, 0);
+	ret = mbuf_raw_video_frame_queue_get_count(queue_packed);
+	CU_ASSERT_EQUAL(ret, 1);
 	ret = mbuf_raw_video_frame_queue_flush(queue_packed);
 	CU_ASSERT_EQUAL(ret, 0);
 
@@ -1245,6 +1299,8 @@ static void test_mbuf_raw_video_frame_queue_drop(void)
 	CU_ASSERT_EQUAL(ret, 0);
 	ret = mbuf_raw_video_frame_queue_push(queue, frame2);
 	CU_ASSERT_EQUAL(ret, 0);
+	ret = mbuf_raw_video_frame_queue_get_count(queue);
+	CU_ASSERT_EQUAL(ret, 1);
 
 	/* Pop a frame, it should be frame 2 */
 	ret = mbuf_raw_video_frame_queue_pop(queue, &out_frame);
@@ -1256,6 +1312,8 @@ static void test_mbuf_raw_video_frame_queue_drop(void)
 	/* Popping a second frame should fail */
 	ret = mbuf_raw_video_frame_queue_pop(queue, &out_frame);
 	CU_ASSERT_EQUAL(ret, -EAGAIN);
+	ret = mbuf_raw_video_frame_queue_get_count(queue);
+	CU_ASSERT_EQUAL(ret, 0);
 
 	/* Cleanup */
 	ret = mbuf_raw_video_frame_unref(frame1);

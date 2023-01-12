@@ -54,7 +54,8 @@ static void add_nalu(struct mbuf_coded_video_frame *frame,
 		     size_t offset,
 		     enum h264_nalu_type type,
 		     enum h264_slice_type slice_type,
-		     int value)
+		     int value,
+		     int importance)
 {
 	void *coded_data;
 	uint8_t *data;
@@ -70,6 +71,7 @@ static void add_nalu(struct mbuf_coded_video_frame *frame,
 	memset(data + offset, value, MBUF_TEST_SIZE);
 	struct vdef_nalu nalu = {
 		.size = MBUF_TEST_SIZE,
+		.importance = importance,
 		.h264.type = type,
 		.h264.slice_type = slice_type,
 	};
@@ -83,7 +85,13 @@ static void add_default_nalu(struct mbuf_coded_video_frame *frame)
 	struct mbuf_mem *mem;
 	int ret = mbuf_mem_generic_new(MBUF_TEST_SIZE, &mem);
 	CU_ASSERT_EQUAL(ret, 0);
-	add_nalu(frame, mem, 0, H264_NALU_TYPE_SPS, H264_SLICE_TYPE_UNKNOWN, 1);
+	add_nalu(frame,
+		 mem,
+		 0,
+		 H264_NALU_TYPE_SPS,
+		 H264_SLICE_TYPE_UNKNOWN,
+		 1,
+		 0);
 	ret = mbuf_mem_unref(mem);
 	CU_ASSERT_EQUAL(ret, 0);
 }
@@ -95,11 +103,13 @@ static void insert_nalu(struct mbuf_coded_video_frame *frame,
 			size_t offset,
 			enum h264_nalu_type type,
 			enum h264_slice_type slice_type,
-			uint32_t index)
+			uint32_t index,
+			int importance)
 {
 	int ret;
 	struct vdef_nalu nalu = {
 		.size = MBUF_TEST_SIZE,
+		.importance = importance,
 		.h264.type = type,
 		.h264.slice_type = slice_type,
 	};
@@ -114,7 +124,8 @@ static void check_nalu(struct mbuf_coded_video_frame *frame,
 		       unsigned int index,
 		       enum h264_nalu_type type,
 		       enum h264_slice_type slice_type,
-		       int value)
+		       int value,
+		       int importance)
 {
 	int ret;
 	const void *nalu_data;
@@ -127,6 +138,7 @@ static void check_nalu(struct mbuf_coded_video_frame *frame,
 		return;
 
 	CU_ASSERT_EQUAL(nalu.size, MBUF_TEST_SIZE);
+	CU_ASSERT_EQUAL(nalu.importance, importance);
 	data = nalu_data;
 	for (size_t i = 0; i < nalu.size; i++) {
 		if (data[i] != value) {
@@ -172,28 +184,34 @@ static void test_mbuf_coded_video_frame_scattered(void)
 		 0,
 		 H264_NALU_TYPE_SPS,
 		 H264_SLICE_TYPE_UNKNOWN,
-		 42);
+		 42,
+		 6);
 	add_nalu(frame,
 		 mem2,
 		 0,
 		 H264_NALU_TYPE_PPS,
 		 H264_SLICE_TYPE_UNKNOWN,
-		 43);
+		 43,
+		 5);
 	add_nalu(frame,
 		 mem3,
 		 0,
 		 H264_NALU_TYPE_SLICE_IDR,
 		 H264_SLICE_TYPE_I,
-		 44);
+		 44,
+		 4);
 
 	/* Finalize the frame */
 	ret = mbuf_coded_video_frame_finalize(frame);
 	CU_ASSERT_EQUAL(ret, 0);
 
 	/* Check frame content via the nalu getters */
-	check_nalu(frame, 0, H264_NALU_TYPE_SPS, H264_SLICE_TYPE_UNKNOWN, 42);
-	check_nalu(frame, 1, H264_NALU_TYPE_PPS, H264_SLICE_TYPE_UNKNOWN, 43);
-	check_nalu(frame, 2, H264_NALU_TYPE_SLICE_IDR, H264_SLICE_TYPE_I, 44);
+	check_nalu(
+		frame, 0, H264_NALU_TYPE_SPS, H264_SLICE_TYPE_UNKNOWN, 42, 6);
+	check_nalu(
+		frame, 1, H264_NALU_TYPE_PPS, H264_SLICE_TYPE_UNKNOWN, 43, 5);
+	check_nalu(
+		frame, 2, H264_NALU_TYPE_SLICE_IDR, H264_SLICE_TYPE_I, 44, 4);
 
 	/* Check that the frame is not packed, as it uses scattered buffers */
 	ret = mbuf_coded_video_frame_get_packed_buffer(
@@ -221,9 +239,12 @@ static void test_mbuf_coded_video_frame_scattered(void)
 	CU_ASSERT_EQUAL(ret, 0);
 
 	/* Copied frame should still have the good nalu contents */
-	check_nalu(packed, 0, H264_NALU_TYPE_SPS, H264_SLICE_TYPE_UNKNOWN, 42);
-	check_nalu(packed, 1, H264_NALU_TYPE_PPS, H264_SLICE_TYPE_UNKNOWN, 43);
-	check_nalu(packed, 2, H264_NALU_TYPE_SLICE_IDR, H264_SLICE_TYPE_I, 44);
+	check_nalu(
+		packed, 0, H264_NALU_TYPE_SPS, H264_SLICE_TYPE_UNKNOWN, 42, 6);
+	check_nalu(
+		packed, 1, H264_NALU_TYPE_PPS, H264_SLICE_TYPE_UNKNOWN, 43, 5);
+	check_nalu(
+		packed, 2, H264_NALU_TYPE_SLICE_IDR, H264_SLICE_TYPE_I, 44, 4);
 
 	/* Copied frame is packed, and thus we can get its packed_buffer */
 	ret = mbuf_coded_video_frame_get_packed_buffer(
@@ -242,20 +263,34 @@ static void test_mbuf_coded_video_frame_scattered(void)
 		    0,
 		    H264_NALU_TYPE_SLICE_IDR,
 		    H264_SLICE_TYPE_I,
-		    UINT32_MAX);
-	insert_nalu(
-		frame, mem1, 0, H264_NALU_TYPE_SPS, H264_SLICE_TYPE_UNKNOWN, 0);
-	insert_nalu(
-		frame, mem2, 0, H264_NALU_TYPE_PPS, H264_SLICE_TYPE_UNKNOWN, 1);
+		    UINT32_MAX,
+		    7);
+	insert_nalu(frame,
+		    mem1,
+		    0,
+		    H264_NALU_TYPE_SPS,
+		    H264_SLICE_TYPE_UNKNOWN,
+		    0,
+		    8);
+	insert_nalu(frame,
+		    mem2,
+		    0,
+		    H264_NALU_TYPE_PPS,
+		    H264_SLICE_TYPE_UNKNOWN,
+		    1,
+		    9);
 
 	/* Finalize the frame */
 	ret = mbuf_coded_video_frame_finalize(frame);
 	CU_ASSERT_EQUAL(ret, 0);
 
 	/* Check frame content via the nalu getters */
-	check_nalu(frame, 0, H264_NALU_TYPE_SPS, H264_SLICE_TYPE_UNKNOWN, 42);
-	check_nalu(frame, 1, H264_NALU_TYPE_PPS, H264_SLICE_TYPE_UNKNOWN, 43);
-	check_nalu(frame, 2, H264_NALU_TYPE_SLICE_IDR, H264_SLICE_TYPE_I, 44);
+	check_nalu(
+		frame, 0, H264_NALU_TYPE_SPS, H264_SLICE_TYPE_UNKNOWN, 42, 8);
+	check_nalu(
+		frame, 1, H264_NALU_TYPE_PPS, H264_SLICE_TYPE_UNKNOWN, 43, 9);
+	check_nalu(
+		frame, 2, H264_NALU_TYPE_SLICE_IDR, H264_SLICE_TYPE_I, 44, 7);
 
 	/* Cleanup */
 	ret = mbuf_mem_unref(mem1);
@@ -294,20 +329,27 @@ static void test_mbuf_coded_video_frame_single(void)
 	CU_ASSERT_EQUAL(ret, 0);
 
 	/* Add the nalus to the frame */
-	add_nalu(
-		frame, mem, 0, H264_NALU_TYPE_SPS, H264_SLICE_TYPE_UNKNOWN, 42);
+	add_nalu(frame,
+		 mem,
+		 0,
+		 H264_NALU_TYPE_SPS,
+		 H264_SLICE_TYPE_UNKNOWN,
+		 42,
+		 1);
 	add_nalu(frame,
 		 mem,
 		 MBUF_TEST_SIZE,
 		 H264_NALU_TYPE_PPS,
 		 H264_SLICE_TYPE_UNKNOWN,
-		 43);
+		 43,
+		 2);
 	add_nalu(frame,
 		 mem,
 		 2 * MBUF_TEST_SIZE,
 		 H264_NALU_TYPE_SLICE_IDR,
 		 H264_SLICE_TYPE_I,
-		 44);
+		 44,
+		 3);
 
 	/* Unref the memories which are no longer used */
 	ret = mbuf_mem_unref(mem);
@@ -318,9 +360,12 @@ static void test_mbuf_coded_video_frame_single(void)
 	CU_ASSERT_EQUAL(ret, 0);
 
 	/* Check frame content via the nalu getters */
-	check_nalu(frame, 0, H264_NALU_TYPE_SPS, H264_SLICE_TYPE_UNKNOWN, 42);
-	check_nalu(frame, 1, H264_NALU_TYPE_PPS, H264_SLICE_TYPE_UNKNOWN, 43);
-	check_nalu(frame, 2, H264_NALU_TYPE_SLICE_IDR, H264_SLICE_TYPE_I, 44);
+	check_nalu(
+		frame, 0, H264_NALU_TYPE_SPS, H264_SLICE_TYPE_UNKNOWN, 42, 1);
+	check_nalu(
+		frame, 1, H264_NALU_TYPE_PPS, H264_SLICE_TYPE_UNKNOWN, 43, 2);
+	check_nalu(
+		frame, 2, H264_NALU_TYPE_SLICE_IDR, H264_SLICE_TYPE_I, 44, 3);
 
 	/* Check that the frame is packed, as it uses a single buffer with no
 	 * gaps */
@@ -407,26 +452,39 @@ static void test_mbuf_coded_video_frame_pool_origin(void)
 	add_default_nalu(frame1);
 	ret = mbuf_coded_video_frame_finalize(frame1);
 	CU_ASSERT_EQUAL(ret, 0);
-	add_nalu(
-		frame2, mem, 0, H264_NALU_TYPE_PPS, H264_SLICE_TYPE_UNKNOWN, 1);
+	add_nalu(frame2,
+		 mem,
+		 0,
+		 H264_NALU_TYPE_PPS,
+		 H264_SLICE_TYPE_UNKNOWN,
+		 1,
+		 0);
 	add_default_nalu(frame2);
 	ret = mbuf_coded_video_frame_finalize(frame2);
 	CU_ASSERT_EQUAL(ret, 0);
-	add_nalu(
-		frame3, mem, 0, H264_NALU_TYPE_PPS, H264_SLICE_TYPE_UNKNOWN, 1);
+	add_nalu(frame3,
+		 mem,
+		 0,
+		 H264_NALU_TYPE_PPS,
+		 H264_SLICE_TYPE_UNKNOWN,
+		 1,
+		 0);
 	ret = mbuf_coded_video_frame_finalize(frame3);
 	CU_ASSERT_EQUAL(ret, 0);
 
 	/* Check pool origin for each frame */
-	ret = mbuf_coded_video_frame_uses_mem_from_pool(frame1, pool, &any, &all);
+	ret = mbuf_coded_video_frame_uses_mem_from_pool(
+		frame1, pool, &any, &all);
 	CU_ASSERT_EQUAL(ret, 0);
 	CU_ASSERT_FALSE(any);
 	CU_ASSERT_FALSE(all);
-	ret = mbuf_coded_video_frame_uses_mem_from_pool(frame2, pool, &any, &all);
+	ret = mbuf_coded_video_frame_uses_mem_from_pool(
+		frame2, pool, &any, &all);
 	CU_ASSERT_EQUAL(ret, 0);
 	CU_ASSERT_TRUE(any);
 	CU_ASSERT_FALSE(all);
-	ret = mbuf_coded_video_frame_uses_mem_from_pool(frame3, pool, &any, &all);
+	ret = mbuf_coded_video_frame_uses_mem_from_pool(
+		frame3, pool, &any, &all);
 	CU_ASSERT_EQUAL(ret, 0);
 	CU_ASSERT_TRUE(any);
 	CU_ASSERT_TRUE(all);
@@ -463,6 +521,7 @@ static void test_mbuf_coded_video_frame_bad_args(void)
 	void *rwdata;
 	struct vdef_nalu nalu = {
 		.size = MBUF_TEST_SIZE,
+		.importance = 0,
 		.h264.type = H264_NALU_TYPE_SLICE_IDR,
 		.h264.slice_type = H264_SLICE_TYPE_I,
 	};
@@ -497,8 +556,13 @@ static void test_mbuf_coded_video_frame_bad_args(void)
 	CU_ASSERT_EQUAL(ret, 0);
 
 	/* Add 1 nalu, finalize frame & get a nalu for reader API tests */
-	add_nalu(
-		frame, mem, 0, H264_NALU_TYPE_SLICE_IDR, H264_SLICE_TYPE_I, 42);
+	add_nalu(frame,
+		 mem,
+		 0,
+		 H264_NALU_TYPE_SLICE_IDR,
+		 H264_SLICE_TYPE_I,
+		 42,
+		 0);
 	ret = mbuf_coded_video_frame_finalize(frame);
 	CU_ASSERT_EQUAL(ret, 0);
 	ret = mbuf_coded_video_frame_get_nalu(frame, 0, &tmp, &nalu);
@@ -607,6 +671,10 @@ static void test_mbuf_coded_video_frame_bad_args(void)
 	CU_ASSERT_EQUAL(ret, -EINVAL);
 	ret = mbuf_coded_video_frame_queue_peek(queue, NULL);
 	CU_ASSERT_EQUAL(ret, -EINVAL);
+	ret = mbuf_coded_video_frame_queue_peek_at(NULL, 0, &frame_cp);
+	CU_ASSERT_EQUAL(ret, -EINVAL);
+	ret = mbuf_coded_video_frame_queue_peek_at(queue, 0, NULL);
+	CU_ASSERT_EQUAL(ret, -EINVAL);
 	ret = mbuf_coded_video_frame_queue_pop(NULL, &frame_cp);
 	CU_ASSERT_EQUAL(ret, -EINVAL);
 	ret = mbuf_coded_video_frame_queue_pop(queue, NULL);
@@ -616,6 +684,8 @@ static void test_mbuf_coded_video_frame_bad_args(void)
 	ret = mbuf_coded_video_frame_queue_get_event(NULL, &evt);
 	CU_ASSERT_EQUAL(ret, -EINVAL);
 	ret = mbuf_coded_video_frame_queue_get_event(queue, NULL);
+	CU_ASSERT_EQUAL(ret, -EINVAL);
+	ret = mbuf_coded_video_frame_queue_get_count(NULL);
 	CU_ASSERT_EQUAL(ret, -EINVAL);
 	ret = mbuf_coded_video_frame_queue_destroy(NULL);
 	CU_ASSERT_EQUAL(ret, -EINVAL);
@@ -658,6 +728,7 @@ static void test_mbuf_coded_video_frame_bad_state(void)
 	void *rwdata;
 	struct vdef_nalu nalu = {
 		.size = MBUF_TEST_SIZE,
+		.importance = 0,
 		.h264.type = H264_NALU_TYPE_SLICE_IDR,
 		.h264.slice_type = H264_SLICE_TYPE_I,
 	};
@@ -689,20 +760,27 @@ static void test_mbuf_coded_video_frame_bad_state(void)
 	CU_ASSERT_EQUAL(ret, -EPROTO);
 
 	/* Add the nalus to the frame */
-	add_nalu(
-		frame, mem, 0, H264_NALU_TYPE_SPS, H264_SLICE_TYPE_UNKNOWN, 42);
+	add_nalu(frame,
+		 mem,
+		 0,
+		 H264_NALU_TYPE_SPS,
+		 H264_SLICE_TYPE_UNKNOWN,
+		 42,
+		 0);
 	add_nalu(frame,
 		 mem,
 		 MBUF_TEST_SIZE,
 		 H264_NALU_TYPE_PPS,
 		 H264_SLICE_TYPE_UNKNOWN,
-		 43);
+		 43,
+		 0);
 	add_nalu(frame,
 		 mem,
 		 2 * MBUF_TEST_SIZE,
 		 H264_NALU_TYPE_SLICE_IDR,
 		 H264_SLICE_TYPE_I,
-		 44);
+		 44,
+		 0);
 
 	/* Buffer is not finalized yet, getters should fail */
 	ret = mbuf_coded_video_frame_get_nalu(frame, 0, &data, &nalu);
@@ -787,8 +865,12 @@ static void test_mbuf_coded_video_frame_queue(void)
 	/* Peek / Pop from empty queue should fail */
 	ret = mbuf_coded_video_frame_queue_peek(queue, &out_frame);
 	CU_ASSERT_EQUAL(ret, -EAGAIN);
+	ret = mbuf_coded_video_frame_queue_peek_at(queue, 0, &out_frame);
+	CU_ASSERT_EQUAL(ret, -EAGAIN);
 	ret = mbuf_coded_video_frame_queue_pop(queue, &out_frame);
 	CU_ASSERT_EQUAL(ret, -EAGAIN);
+	ret = mbuf_coded_video_frame_queue_get_count(queue);
+	CU_ASSERT_EQUAL(ret, 0);
 
 	/* Pushing a non-finalized frame should fail */
 	ret = mbuf_coded_video_frame_queue_push(queue, frame1);
@@ -812,11 +894,27 @@ static void test_mbuf_coded_video_frame_queue(void)
 	CU_ASSERT_EQUAL(ret, 0);
 	ret = mbuf_coded_video_frame_queue_push(queue, frame3);
 	CU_ASSERT_EQUAL(ret, 0);
+	ret = mbuf_coded_video_frame_queue_get_count(queue);
+	CU_ASSERT_EQUAL(ret, 3);
 
 	/* Peek and compare to frame 1 */
 	ret = mbuf_coded_video_frame_queue_peek(queue, &out_frame);
 	CU_ASSERT_EQUAL(ret, 0);
 	CU_ASSERT_PTR_EQUAL(out_frame, frame1);
+	ret = mbuf_coded_video_frame_unref(out_frame);
+	CU_ASSERT_EQUAL(ret, 0);
+
+	/* Peek at index 0 and compare to frame 1 */
+	ret = mbuf_coded_video_frame_queue_peek_at(queue, 0, &out_frame);
+	CU_ASSERT_EQUAL(ret, 0);
+	CU_ASSERT_PTR_EQUAL(out_frame, frame1);
+	ret = mbuf_coded_video_frame_unref(out_frame);
+	CU_ASSERT_EQUAL(ret, 0);
+
+	/* Peek at index 1 and compare to frame 2 */
+	ret = mbuf_coded_video_frame_queue_peek_at(queue, 1, &out_frame);
+	CU_ASSERT_EQUAL(ret, 0);
+	CU_ASSERT_PTR_EQUAL(out_frame, frame2);
 	ret = mbuf_coded_video_frame_unref(out_frame);
 	CU_ASSERT_EQUAL(ret, 0);
 
@@ -826,6 +924,8 @@ static void test_mbuf_coded_video_frame_queue(void)
 	CU_ASSERT_PTR_EQUAL(out_frame, frame1);
 	ret = mbuf_coded_video_frame_unref(out_frame);
 	CU_ASSERT_EQUAL(ret, 0);
+	ret = mbuf_coded_video_frame_queue_get_count(queue);
+	CU_ASSERT_EQUAL(ret, 2);
 
 	/* Peek and compare to frame 2 */
 	ret = mbuf_coded_video_frame_queue_peek(queue, &out_frame);
@@ -833,13 +933,33 @@ static void test_mbuf_coded_video_frame_queue(void)
 	CU_ASSERT_PTR_EQUAL(out_frame, frame2);
 	ret = mbuf_coded_video_frame_unref(out_frame);
 	CU_ASSERT_EQUAL(ret, 0);
+	ret = mbuf_coded_video_frame_queue_get_count(queue);
+	CU_ASSERT_EQUAL(ret, 2);
+
+	/* Peek at index 0 and compare to frame 2 */
+	ret = mbuf_coded_video_frame_queue_peek_at(queue, 0, &out_frame);
+	CU_ASSERT_EQUAL(ret, 0);
+	CU_ASSERT_PTR_EQUAL(out_frame, frame2);
+	ret = mbuf_coded_video_frame_unref(out_frame);
+	CU_ASSERT_EQUAL(ret, 0);
+
+	/* Peek at index 1 and compare to frame 3 */
+	ret = mbuf_coded_video_frame_queue_peek_at(queue, 1, &out_frame);
+	CU_ASSERT_EQUAL(ret, 0);
+	CU_ASSERT_PTR_EQUAL(out_frame, frame3);
+	ret = mbuf_coded_video_frame_unref(out_frame);
+	CU_ASSERT_EQUAL(ret, 0);
 
 	/* Flush */
 	ret = mbuf_coded_video_frame_queue_flush(queue);
 	CU_ASSERT_EQUAL(ret, 0);
+	ret = mbuf_coded_video_frame_queue_get_count(queue);
+	CU_ASSERT_EQUAL(ret, 0);
 
 	/* Peek / Pop from flushed queue should fail */
 	ret = mbuf_coded_video_frame_queue_peek(queue, &out_frame);
+	CU_ASSERT_EQUAL(ret, -EAGAIN);
+	ret = mbuf_coded_video_frame_queue_peek_at(queue, 0, &out_frame);
 	CU_ASSERT_EQUAL(ret, -EAGAIN);
 	ret = mbuf_coded_video_frame_queue_pop(queue, &out_frame);
 	CU_ASSERT_EQUAL(ret, -EAGAIN);
@@ -887,6 +1007,7 @@ static void test_mbuf_coded_video_frame_queue_flush(void)
 	};
 	struct vdef_nalu nalu = {
 		.size = MBUF_TEST_SIZE,
+		.importance = 0,
 		.h264.type = H264_NALU_TYPE_SPS,
 		.h264.slice_type = H264_SLICE_TYPE_UNKNOWN,
 	};
@@ -1119,6 +1240,8 @@ static void test_mbuf_coded_video_frame_queue_filter(void)
 	CU_ASSERT_EQUAL(ret, -EPROTO);
 	ret = mbuf_coded_video_frame_queue_push(queue_none, frame2);
 	CU_ASSERT_EQUAL(ret, -EPROTO);
+	ret = mbuf_coded_video_frame_queue_get_count(queue_none);
+	CU_ASSERT_EQUAL(ret, 0);
 	ret = mbuf_coded_video_frame_queue_flush(queue_none);
 	CU_ASSERT_EQUAL(ret, 0);
 
@@ -1127,6 +1250,8 @@ static void test_mbuf_coded_video_frame_queue_filter(void)
 	CU_ASSERT_EQUAL(ret, 0);
 	ret = mbuf_coded_video_frame_queue_push(queue_all, frame2);
 	CU_ASSERT_EQUAL(ret, 0);
+	ret = mbuf_coded_video_frame_queue_get_count(queue_all);
+	CU_ASSERT_EQUAL(ret, 2);
 	ret = mbuf_coded_video_frame_queue_flush(queue_all);
 	CU_ASSERT_EQUAL(ret, 0);
 
@@ -1135,6 +1260,8 @@ static void test_mbuf_coded_video_frame_queue_filter(void)
 	CU_ASSERT_EQUAL(ret, 0);
 	ret = mbuf_coded_video_frame_queue_push(queue_single_nalu, frame2);
 	CU_ASSERT_EQUAL(ret, -EPROTO);
+	ret = mbuf_coded_video_frame_queue_get_count(queue_single_nalu);
+	CU_ASSERT_EQUAL(ret, 1);
 	ret = mbuf_coded_video_frame_queue_flush(queue_single_nalu);
 	CU_ASSERT_EQUAL(ret, 0);
 
@@ -1193,6 +1320,8 @@ static void test_mbuf_coded_video_frame_queue_drop(void)
 	CU_ASSERT_EQUAL(ret, 0);
 	ret = mbuf_coded_video_frame_queue_push(queue, frame2);
 	CU_ASSERT_EQUAL(ret, 0);
+	ret = mbuf_coded_video_frame_queue_get_count(queue);
+	CU_ASSERT_EQUAL(ret, 1);
 
 	/* Pop a frame, it should be frame 2 */
 	ret = mbuf_coded_video_frame_queue_pop(queue, &out_frame);
@@ -1204,6 +1333,8 @@ static void test_mbuf_coded_video_frame_queue_drop(void)
 	/* Popping a second frame should fail */
 	ret = mbuf_coded_video_frame_queue_pop(queue, &out_frame);
 	CU_ASSERT_EQUAL(ret, -EAGAIN);
+	ret = mbuf_coded_video_frame_queue_get_count(queue);
+	CU_ASSERT_EQUAL(ret, 0);
 
 	/* Cleanup */
 	ret = mbuf_coded_video_frame_unref(frame1);

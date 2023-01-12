@@ -28,7 +28,7 @@
 
 
 #define TEST_LEN 1024
-#define TEST_USERDATA (void *)(uintptr_t)0x12345
+#define TEST_USERDATA (void *)(uintptr_t) 0x12345
 #define TEST_CONTENT 0x42
 static void *tmp;
 

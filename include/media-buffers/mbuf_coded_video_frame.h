@@ -787,6 +787,27 @@ mbuf_coded_video_frame_queue_peek(struct mbuf_coded_video_frame_queue *queue,
 
 
 /**
+ * Peek a frame from a queue at a given index.
+ *
+ * This function returns the frame in the queue (or -ENOENT if the queue
+ * is empty) at a given index, but does not remove it from the queue.
+ * A 0 index corresponds to the first frame in the queue. The returned
+ * frame is properly referenced, so the caller will need to call
+ * mbuf_coded_video_frame_unref() when the frame is no longer needed.
+ *
+ * @param queue: The queue.
+ * @param index: Index in the queue.
+ * @param frame: [out] The first frame in the queue.
+ *
+ * @return 0 on success, negative errno on error.
+ */
+MBUF_API int
+mbuf_coded_video_frame_queue_peek_at(struct mbuf_coded_video_frame_queue *queue,
+				     unsigned int index,
+				     struct mbuf_coded_video_frame **frame);
+
+
+/**
  * Pop a frame from a queue.
  *
  * This function returns the first frame in the queue (or -ENOENT if the queue
@@ -836,6 +857,19 @@ mbuf_coded_video_frame_queue_flush(struct mbuf_coded_video_frame_queue *queue);
 MBUF_API int mbuf_coded_video_frame_queue_get_event(
 	struct mbuf_coded_video_frame_queue *queue,
 	struct pomp_evt **evt);
+
+
+/**
+ * Get the queue frame count.
+ *
+ * This function returns the current number of frames held by the queue.
+ *
+ * @param queue: The queue.
+ *
+ * @return the queue frame count on success, negative errno on error.
+ */
+MBUF_API int mbuf_coded_video_frame_queue_get_count(
+	struct mbuf_coded_video_frame_queue *queue);
 
 
 /**
