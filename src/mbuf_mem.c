@@ -29,6 +29,7 @@
 #include <errno.h>
 #include <stdbool.h>
 #include <stdlib.h>
+#include <string.h>
 
 #define ULOG_TAG mbuf_mem
 #include <ulog.h>
