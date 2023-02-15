@@ -24,6 +24,11 @@ set_target_properties(media-buffers-memory PROPERTIES
 
 target_link_libraries(media-buffers-memory futils ulog pomp media-buffers_compiler_flags)
 
+# media-buffers-memory-internal
+add_library(media-buffers-memory-internal INTERFACE)
+target_include_directories(media-buffers-memory-internal INTERFACE src/internal)
+
+
 # media-buffers-generic
 add_subdirectory(implem/generic)
 
@@ -51,4 +56,4 @@ set_target_properties(media-buffers PROPERTIES
                     POSITION_INDEPENDENT_CODE ${BUILD_SHARED_LIBS}
 )
 
-target_link_libraries(media-buffers futils media-buffers-memory ulog pomp video-defs video-metadata media-buffers_compiler_flags)
+target_link_libraries(media-buffers PUBLIC futils media-buffers-memory media-buffers-memory-internal ulog pomp video-defs video-metadata media-buffers_compiler_flags)

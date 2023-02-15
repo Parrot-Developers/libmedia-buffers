@@ -22,4 +22,4 @@ set_target_properties(media-buffers-memory-generic PROPERTIES
                     POSITION_INDEPENDENT_CODE ${BUILD_SHARED_LIBS}
 )
 
-target_link_libraries(media-buffers-memory-generic media-buffers-memory ulog media-buffers-generic_compiler_flags)
+target_link_libraries(media-buffers-memory-generic PUBLIC media-buffers-memory media-buffers-memory-internal ulog media-buffers-generic_compiler_flags)
