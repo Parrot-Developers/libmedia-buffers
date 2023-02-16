@@ -1,9 +1,7 @@
 cmake_minimum_required(VERSION 3.15)
 project(libmedia-buffers VERSION 1.0)
-option(BUILD_SHARED_LIBS "Build using shared libraries" ON)
 
-add_library(media-buffers_compiler_flags INTERFACE)
-target_compile_features(media-buffers_compiler_flags INTERFACE cxx_std_11)
+option(BUILD_SHARED_LIBS "Build using shared libraries" ON)
 
 # media-buffers-memory
 add_library(media-buffers-memory src/mbuf_mem.c)
@@ -16,20 +14,26 @@ target_include_directories(media-buffers-memory PUBLIC
 # building on windows
 target_compile_definitions(media-buffers-memory PRIVATE "MBUF_API_EXPORTS")
 target_compile_options(media-buffers-memory PRIVATE "-fvisibility=hidden")
+target_compile_options(media-buffers-memory PRIVATE "-std=gnu11")
 
 # state that libpomp need PIC when the default is shared libraries
 set_target_properties(media-buffers-memory PROPERTIES
                     POSITION_INDEPENDENT_CODE ${BUILD_SHARED_LIBS}
 )
 
-target_link_libraries(media-buffers-memory futils ulog pomp media-buffers_compiler_flags)
+target_link_libraries(media-buffers-memory 
+        futils 
+        pomp
+        ulog
+)
 
 # media-buffers-memory-internal
 add_library(media-buffers-memory-internal INTERFACE)
-target_include_directories(media-buffers-memory-internal INTERFACE src/internal)
+target_include_directories(media-buffers-memory-internal INTERFACE 
+                                        $<BUILD_INTERFACE:${CMAKE_CURRENT_SOURCE_DIR}/src/internal>
+                                        $<INSTALL_INTERFACE:include>)
 
-
-# media-buffers-generic
+# media-buffers-memory-generic
 add_subdirectory(implem/generic)
 
 # media-buffers
@@ -50,10 +54,18 @@ target_include_directories(media-buffers PUBLIC
 # building on windows
 target_compile_definitions(media-buffers PRIVATE "MBUF_API_EXPORTS")
 target_compile_options(media-buffers PRIVATE "-fvisibility=hidden")
+target_compile_options(media-buffers PRIVATE "-std=gnu11")
 
 # state that libpomp need PIC when the default is shared libraries
 set_target_properties(media-buffers PROPERTIES
                     POSITION_INDEPENDENT_CODE ${BUILD_SHARED_LIBS}
 )
 
-target_link_libraries(media-buffers PUBLIC futils media-buffers-memory media-buffers-memory-internal ulog pomp video-defs video-metadata media-buffers_compiler_flags)
+target_link_libraries(media-buffers 
+                        futils
+                        media-buffers-memory
+                        pomp
+                        ulog
+                        video-defs
+                        video-metadata
+)
