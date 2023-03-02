@@ -61,7 +61,7 @@ set_target_properties(media-buffers PROPERTIES
                     POSITION_INDEPENDENT_CODE ${BUILD_SHARED_LIBS}
 )
 
-target_link_libraries(media-buffers 
+target_link_libraries(media-buffers PRIVATE 
                         futils
                         media-buffers-memory
                         pomp
