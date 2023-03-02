@@ -3,15 +3,10 @@ project(media-buffers VERSION 1.0)
 
 option(BUILD_SHARED_LIBS "Build using shared libraries" ON)
 
-# checks if set up rpath exists for install
-if(COMMAND set_up_rpath)
-    set_up_rpath()
-else()
-    message("Set up rpath not defined!")
-endif()
 
 # media-buffers-memory
 add_library(media-buffers-memory src/mbuf_mem.c)
+
 
 target_include_directories(media-buffers-memory PUBLIC
                             $<BUILD_INTERFACE:${CMAKE_CURRENT_SOURCE_DIR}/include>
@@ -58,6 +53,12 @@ set(LOCAL_SRC_FILES
 )
 
 add_library(${PROJECT_NAME} ${LOCAL_SRC_FILES})
+# checks if set up rpath exists for install
+if(COMMAND set_up_rpath)
+    set_up_rpath()
+else()
+    message("Set up rpath not defined!")
+endif()
 
 target_include_directories(${PROJECT_NAME} PUBLIC
                             $<BUILD_INTERFACE:${CMAKE_CURRENT_SOURCE_DIR}/include>
@@ -74,7 +75,7 @@ set_target_properties(${PROJECT_NAME} PROPERTIES
                     POSITION_INDEPENDENT_CODE ${BUILD_SHARED_LIBS}
 )
 
-target_link_libraries(${PROJECT_NAME} 
+target_link_libraries(${PROJECT_NAME}
                     PUBLIC
                        video-metadata
                        video-defs
