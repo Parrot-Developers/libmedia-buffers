@@ -27,6 +27,7 @@
 #include "mbuf_base_frame.h"
 #include "mbuf_internal.h"
 
+#include <string.h>
 #include <errno.h>
 #include <stdlib.h>
 
