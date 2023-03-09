@@ -87,6 +87,15 @@ target_link_libraries(${PROJECT_NAME}
                       ulog
 )
 
+# to get all header files correctly
+set(${PROJECT_NAME}-headers
+    ${PROJECT_SOURCE_DIR}/include/${PROJECT_NAME}/
+)
+install(
+    DIRECTORY ${${PROJECT_NAME}-headers} DESTINATION include/${PROJECT_NAME}
+)
+
+
 
 install(TARGETS ${PROJECT_NAME}
         EXPORT ${PROJECT_NAME}-targets
