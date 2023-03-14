@@ -4,7 +4,7 @@ project(media-buffers-memory-generic VERSION 1.0)
 
 
 # media-buffers-memory-generic
-add_library(${PROJECT_NAME} src/mbuf_mem_generic.c)
+add_library(${PROJECT_NAME} SHARED src/mbuf_mem_generic.c)
 
 # checks if set up rpath exists for install
 if(COMMAND set_up_rpath)

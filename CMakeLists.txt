@@ -5,28 +5,28 @@ option(BUILD_SHARED_LIBS "Build using shared libraries" ON)
 
 
 # media-buffers-memory
-add_library(media-buffers-memory src/mbuf_mem.c)
+add_library(${PROJECT_NAME}-memory SHARED src/mbuf_mem.c)
 
 
-target_include_directories(media-buffers-memory PUBLIC
+target_include_directories(${PROJECT_NAME}-memory PUBLIC
                             $<BUILD_INTERFACE:${CMAKE_CURRENT_SOURCE_DIR}/include>
                             $<INSTALL_INTERFACE:include>
 )
 
 # define the symbol stating we are using the declspec(dllexport) when
 # building on windows
-target_compile_definitions(media-buffers-memory PRIVATE "MBUF_API_EXPORTS")
-target_compile_options(media-buffers-memory PRIVATE "-fvisibility=hidden")
-target_compile_options(media-buffers-memory PRIVATE "-std=gnu11")
+target_compile_definitions(${PROJECT_NAME}-memory PRIVATE "MBUF_API_EXPORTS")
+target_compile_options(${PROJECT_NAME}-memory PRIVATE "-fvisibility=hidden")
+target_compile_options(${PROJECT_NAME}-memory PRIVATE "-std=gnu11")
 
 
 
 # state that libpomp need PIC when the default is shared libraries
-set_target_properties(media-buffers-memory PROPERTIES
+set_target_properties(${PROJECT_NAME}-memory PROPERTIES
                     POSITION_INDEPENDENT_CODE ${BUILD_SHARED_LIBS}
 )
 
-target_link_libraries(media-buffers-memory 
+target_link_libraries(${PROJECT_NAME}-memory 
         PRIVATE
         futils 
         pomp
@@ -34,7 +34,7 @@ target_link_libraries(media-buffers-memory
 )
 
 # media-buffers-memory-internal -- This is needed by the generic
-add_library(media-buffers-memory-internal INTERFACE)
+add_library(${PROJECT_NAME}-memory-internal INTERFACE)
 target_include_directories(media-buffers-memory-internal INTERFACE 
                            $<BUILD_INTERFACE:${CMAKE_CURRENT_SOURCE_DIR}/src/internal>
                            $<INSTALL_INTERFACE:include>)
@@ -52,7 +52,7 @@ set(LOCAL_SRC_FILES
         src/mbuf_utils.c
 )
 
-add_library(${PROJECT_NAME} ${LOCAL_SRC_FILES})
+add_library(${PROJECT_NAME} SHARED ${LOCAL_SRC_FILES})
 # checks if set up rpath exists for install
 if(COMMAND set_up_rpath)
     set_up_rpath()
