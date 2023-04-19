@@ -182,19 +182,19 @@ static int mbuf_coded_video_frame_insert_nalu_internal(
 	if (index > frame->nnalus)
 		index = frame->nnalus;
 
+	struct mbuf_coded_video_frame_nalu *new =
+		realloc(frame->nalus, (frame->nnalus + 1) * sizeof(*new));
+	if (!new)
+		return -ENOMEM;
+	frame->nalus = new;
+
 	int ret = mbuf_mem_ref(mem);
 	if (ret != 0) {
+		/* This should never happen, as (mem != NULL) has been
+		 * checked by caller */
 		ULOG_ERRNO("mbuf_mem_ref", -ret);
 		return ret;
 	}
-
-	struct mbuf_coded_video_frame_nalu *new =
-		realloc(frame->nalus, (frame->nnalus + 1) * sizeof(*new));
-	if (!new) {
-		mbuf_mem_unref(mem);
-		return -ENOMEM;
-	}
-	frame->nalus = new;
 
 	/* If we're inserting, copy the data after */
 	if (index < frame->nnalus)
