@@ -1345,12 +1345,20 @@ static void test_mbuf_coded_video_frame_queue_drop(void)
 	CU_ASSERT_EQUAL(ret, 0);
 }
 
+
+struct mbuf_ancillary_data_dyn_test {
+	char *dyn_str;
+};
+
+
 struct mbuf_ancillary_data_test {
 	const char *str_name;
 	const char *str_value;
 	bool has_str;
 	const char *buf_name;
 	uint8_t buf_value[5];
+	const char *buf_dyn_name;
+	struct mbuf_ancillary_data_dyn_test buf_dyn_value;
 	bool has_buf;
 };
 
@@ -1385,6 +1393,19 @@ static bool ancillary_iterator(struct mbuf_ancillary_data *data, void *userdata)
 }
 
 
+static void mbuf_coded_video_frame_ancillary_data_cleaner_cb(
+	struct mbuf_ancillary_data *data,
+	void *userdata)
+{
+	struct mbuf_ancillary_data_dyn_test *buf_dyn_value =
+		(struct mbuf_ancillary_data_dyn_test *)userdata;
+	CU_ASSERT_PTR_NOT_NULL_FATAL(buf_dyn_value->dyn_str);
+
+	free(buf_dyn_value->dyn_str);
+	buf_dyn_value->dyn_str = NULL;
+}
+
+
 static void test_mbuf_coded_video_frame_ancillary_data(void)
 {
 	int ret;
@@ -1396,11 +1417,14 @@ static void test_mbuf_coded_video_frame_ancillary_data(void)
 	struct mbuf_mem *mem;
 	struct mbuf_coded_video_frame *frame, *copy;
 
+	struct mbuf_ancillary_data_cbs ancillary_cbs = {};
 	struct mbuf_ancillary_data_test adt = {
 		.str_name = "str",
 		.str_value = "test",
 		.buf_name = "buf",
 		.buf_value = {1, 2, 3, 4, 5},
+		.buf_dyn_name = "buf_dyn",
+		.buf_dyn_value = {},
 	};
 
 	/* Create the pool, frame and memory used by the test */
@@ -1444,6 +1468,31 @@ static void test_mbuf_coded_video_frame_ancillary_data(void)
 	CU_ASSERT_EQUAL(ret, 0);
 	CU_ASSERT_FALSE(adt.has_str);
 	CU_ASSERT_FALSE(adt.has_buf);
+
+	/* Allocate dynamic data that will be freed by the
+	 * ancillary_data_cleaner_cb */
+	adt.buf_dyn_value.dyn_str = strdup("dyn_str");
+	CU_ASSERT_PTR_NOT_NULL_FATAL(adt.buf_dyn_value.dyn_str);
+
+	ancillary_cbs.cleaner =
+		mbuf_coded_video_frame_ancillary_data_cleaner_cb;
+	ancillary_cbs.cleaner_userdata = &adt.buf_dyn_value;
+
+	/* Add the dynamic buffer */
+	ret = mbuf_coded_video_frame_add_ancillary_buffer_with_cbs(
+		frame,
+		adt.buf_dyn_name,
+		&adt.buf_dyn_value,
+		sizeof(adt.buf_dyn_value),
+		&ancillary_cbs);
+	CU_ASSERT_EQUAL(ret, 0);
+
+	/* Delete the ancillary buffer, ancillary_data_cleaner_cb must be
+	 * called to free dyn_str */
+	ret = mbuf_coded_video_frame_remove_ancillary_data(frame,
+							   adt.buf_dyn_name);
+	CU_ASSERT_EQUAL(ret, 0);
+	CU_ASSERT_PTR_NULL(adt.buf_dyn_value.dyn_str);
 
 	/* Test the single element getter */
 	struct mbuf_ancillary_data *tmp;

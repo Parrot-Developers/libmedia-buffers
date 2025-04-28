@@ -513,6 +513,40 @@ MBUF_API int mbuf_raw_video_frame_copy(struct mbuf_raw_video_frame *frame,
 
 
 /**
+ * Copy a frame into a new one, backed by the given memory, with alignment
+ * constraints.
+ *
+ * The memory must be big enough to hold the whole frame. The required size can
+ * be retrived with the vdef_calc_raw_frame_size() function. The returned frame
+ * is not finalized and can be modified by the caller. The plane_stride_align,
+ * plane_scanline_align and plane_size_align are all optional and give the
+ * alignment constraints for each plane.
+ *
+ * @param frame: The frame to copy.
+ * @param dst: The memory for the new frame.
+ * @param plane_stride_align: An array of VDEF_RAW_MAX_PLANE_COUNT plane stride
+ *        alignment constraints, can be NULL (for NULL or value of 0, no
+ *        alignment is applied)
+ * @param plane_scanline_align: An array of VDEF_RAW_MAX_PLANE_COUNT plane
+ *        scanline alignment constraints, can be NULL (for NULL or value of 0,
+ *        no alignment is applied)
+ * @param plane_size_align: An array of VDEF_RAW_MAX_PLANE_COUNT for plane size
+ *        alignment constraints, can NULL (for NULL or value of 0, no alignment
+ *        is applied)
+ * @param ret_obj: [out] The new frame.
+ *
+ * @return 0 on success, negative errno on error.
+ */
+MBUF_API int
+mbuf_raw_video_frame_copy_with_align(struct mbuf_raw_video_frame *frame,
+				     struct mbuf_mem *dst,
+				     const unsigned int *plane_stride_align,
+				     const unsigned int *plane_scanline_align,
+				     const unsigned int *plane_size_align,
+				     struct mbuf_raw_video_frame **ret_obj);
+
+
+/**
  * Get the frame_info structure of the given frame.
  *
  * The content will be copied, and thus are valid even beyond the lifetime of
@@ -537,7 +571,7 @@ mbuf_raw_video_frame_get_frame_info(struct mbuf_raw_video_frame *frame,
  * The value will be copied internally.
  *
  * @note If a data with the same name already exists, the function returns
- * -EEXIST. It does not replaces the data.
+ * -EEXIST. It does not replace the data.
  *
  * @param frame: The frame.
  * @param name: The ancillary data name.
@@ -557,7 +591,7 @@ mbuf_raw_video_frame_add_ancillary_string(struct mbuf_raw_video_frame *frame,
  * The data will be copied internally.
  *
  * @note If a data with the same name already exists, the function returns
- * -EEXIST. It does not replaces the data.
+ * -EEXIST. It does not replace the data.
  *
  * @param frame: The frame.
  * @param name: The ancillary data name.
@@ -574,6 +608,30 @@ mbuf_raw_video_frame_add_ancillary_buffer(struct mbuf_raw_video_frame *frame,
 
 
 /**
+ * Add a new ancillary data buffer to a given frame (with callbacks).
+ *
+ * The data will be copied internally.
+ *
+ * @note If a data with the same name already exists, the function returns
+ * -EEXIST. It does not replace the data.
+ *
+ * @param frame: The frame.
+ * @param name: The ancillary data name.
+ * @param buffer: The ancillary data buffer.
+ * @param len: The ancillary data length.
+ * @param cbs: Optional callback functions.
+ *
+ * @return 0 on success, negative errno on error.
+ */
+MBUF_API int mbuf_raw_video_frame_add_ancillary_buffer_with_cbs(
+	struct mbuf_raw_video_frame *frame,
+	const char *name,
+	const void *buffer,
+	size_t len,
+	const struct mbuf_ancillary_data_cbs *cbs);
+
+
+/**
  * Add an existing ancillary data to a given frame.
  *
  * This function is mainly used when copying ancillary data from a frame to
@@ -581,7 +639,7 @@ mbuf_raw_video_frame_add_ancillary_buffer(struct mbuf_raw_video_frame *frame,
  * done.
  *
  * @note If a data with the same name already exists, the function returns
- * -EEXIST. It does not replaces the data.
+ * -EEXIST. It does not replace the data.
  *
  * @param frame: The frame.
  * @param data: The ancillary data to add.

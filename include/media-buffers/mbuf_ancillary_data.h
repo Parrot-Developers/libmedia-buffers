@@ -29,6 +29,7 @@
 
 #include <stdbool.h>
 #include <stddef.h>
+#include <stdint.h>
 
 #ifdef __cplusplus
 extern "C" {
@@ -75,6 +76,30 @@ extern MBUF_API const char *MBUF_ANCILLARY_KEY_USERDATA_SEI;
 
 
 struct mbuf_ancillary_data;
+
+
+/**
+ * Cleaner callback function.
+ *
+ * Called before an ancillary data is released.
+ *
+ * @param data: The ancillary data about to be released.
+ * @param userdata: Callback function user data.
+ */
+typedef void (*mbuf_ancillary_data_cleaner_t)(struct mbuf_ancillary_data *data,
+					      void *userdata);
+
+
+/**
+ * Optional callback functions structure for mbuf_ancillary_data.
+ */
+struct mbuf_ancillary_data_cbs {
+	/* Cleaner callback function */
+	mbuf_ancillary_data_cleaner_t cleaner;
+
+	/* Userdata for the cleaner callback function */
+	void *cleaner_userdata;
+};
 
 
 /**
@@ -175,6 +200,37 @@ mbuf_ancillary_data_get_string(struct mbuf_ancillary_data *data);
  */
 MBUF_API const void *
 mbuf_ancillary_data_get_buffer(struct mbuf_ancillary_data *data, size_t *len);
+
+
+/**
+ * Build an ancillary key from a name and an instance pointer.
+ *
+ * The ancillary key will be allocated and must be freed by the caller.
+ *
+ * @param name: The ancillary data name.
+ * @param ptr: An instance pointer (optional, can be 0)
+ * @param key: The ancillary key built (must be freed).
+ *
+ * @return 0 on success, negative errno on error.
+ */
+MBUF_API int
+mbuf_ancillary_data_build_key(const char *name, uintptr_t ptr, char **key);
+
+
+/**
+ * Parse an ancillary key to extract a name and an instance pointer.
+ *
+ * The name will be allocated and must be freed by the caller.
+ *
+ * @param kezy: The ancillary key to parse.
+ * @param name: The extracted name (must be freed).
+ * @param ptr: An instance pointer (will be set if existing in the key).
+ *
+ * @return 0 on success, negative errno on error.
+ */
+MBUF_API int
+mbuf_ancillary_data_parse_key(const char *key, char **name, uintptr_t *ptr);
+
 
 #ifdef __cplusplus
 }

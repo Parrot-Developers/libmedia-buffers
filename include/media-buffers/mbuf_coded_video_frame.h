@@ -566,7 +566,7 @@ mbuf_coded_video_frame_get_frame_info(struct mbuf_coded_video_frame *frame,
  * The value will be copied internally.
  *
  * @note If a data with the same name already exists, the function returns
- * -EEXIST. It does not replaces the data.
+ * -EEXIST. It does not replace the data.
  *
  * @param frame: The frame.
  * @param name: The ancillary data name.
@@ -586,7 +586,7 @@ MBUF_API int mbuf_coded_video_frame_add_ancillary_string(
  * The buffer will be copied internally.
  *
  * @note If a data with the same name already exists, the function returns
- * -EEXIST. It does not replaces the data.
+ * -EEXIST. It does not replace the data.
  *
  * @param frame: The frame.
  * @param name: The ancillary data name.
@@ -603,6 +603,30 @@ MBUF_API int mbuf_coded_video_frame_add_ancillary_buffer(
 
 
 /**
+ * Add a new ancillary data buffer to a given frame (with callbacks).
+ *
+ * The buffer will be copied internally.
+ *
+ * @note If a data with the same name already exists, the function returns
+ * -EEXIST. It does not replace the data.
+ *
+ * @param frame: The frame.
+ * @param name: The ancillary data name.
+ * @param buffer: The ancillary data buffer.
+ * @param len: The ancillary data length.
+ * @param cbs: Optional callback functions.
+ *
+ * @return 0 on success, negative errno on error.
+ */
+MBUF_API int mbuf_coded_video_frame_add_ancillary_buffer_with_cbs(
+	struct mbuf_coded_video_frame *frame,
+	const char *name,
+	const void *buffer,
+	size_t len,
+	const struct mbuf_ancillary_data_cbs *cbs);
+
+
+/**
  * Add an existing ancillary data to a given frame.
  *
  * This function is mainly used when copying ancillary data from a frame to
@@ -610,7 +634,7 @@ MBUF_API int mbuf_coded_video_frame_add_ancillary_buffer(
  * done.
  *
  * @note If a data with the same name already exists, the function returns
- * -EEXIST. It does not replaces the data.
+ * -EEXIST. It does not replace the data.
  *
  * @param frame: The frame.
  * @param data: The ancillary data to add.

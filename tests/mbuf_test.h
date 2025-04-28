@@ -27,6 +27,7 @@
 #ifndef _MBUF_TEST_H_
 #define _MBUF_TEST_H_
 
+#include <media-buffers/mbuf_audio_frame.h>
 #include <media-buffers/mbuf_coded_video_frame.h>
 #include <media-buffers/mbuf_mem.h>
 #include <media-buffers/mbuf_mem_generic.h>
@@ -37,6 +38,7 @@
 #include <CUnit/CUnit.h>
 
 #include <errno.h>
+#include <inttypes.h>
 #include <stdlib.h>
 #include <string.h>
 
@@ -45,10 +47,12 @@
 #define MBUF_TEST_POOL_SIZE 10
 
 
-extern CU_TestInfo g_mbuf_test_pool[];
-extern CU_TestInfo g_mbuf_test_wrap[];
-extern CU_TestInfo g_mbuf_test_raw_video_frame[];
+extern CU_TestInfo g_mbuf_test_ancillary[];
+extern CU_TestInfo g_mbuf_test_audio_frame[];
 extern CU_TestInfo g_mbuf_test_coded_video_frame[];
+extern CU_TestInfo g_mbuf_test_pool[];
+extern CU_TestInfo g_mbuf_test_raw_video_frame[];
+extern CU_TestInfo g_mbuf_test_wrap[];
 
 
 #endif /* _MBUF_TEST_H_ */

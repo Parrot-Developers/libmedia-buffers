@@ -28,6 +28,9 @@
 
 #define MBUF_TEST_WIDTH 4
 #define MBUF_TEST_HEIGHT 4
+#define MBUF_TEST_STRIDE_ALIGN 16
+#define MBUF_TEST_SCANLINE_ALIGN 16
+#define MBUF_TEST_SIZE_ALIGN 1024
 
 /* For the stride test, we will set the test frames to have a stride of 2*width
  * on the Y plane, ensuring that their packed size will be width*height*2, while
@@ -73,10 +76,9 @@ static struct mbuf_pool *create_pool()
 {
 	struct vdef_raw_frame tmp;
 	init_frame_info(&tmp, true);
-	size_t max_frame_size = get_frame_size(&tmp);
 	struct mbuf_pool *pool;
 	int ret = mbuf_pool_new(mbuf_mem_generic_impl,
-				max_frame_size * 10,
+				MBUF_TEST_SIZE_ALIGN * 3,
 				0,
 				MBUF_POOL_LOW_MEM_GROW,
 				0,
@@ -241,11 +243,11 @@ static void check_planes(struct mbuf_raw_video_frame *frame)
 
 static void test_mbuf_raw_video_frame_scattered(void)
 {
-	struct mbuf_mem *memy, *memu, *memv, *mempack, *memnostride;
+	struct mbuf_mem *memy, *memu, *memv, *mempack, *memnostride, *memalign;
 	struct vdef_raw_frame frame_info;
 	size_t required_len;
 	const void *data;
-	struct mbuf_raw_video_frame *frame, *packed, *nostride;
+	struct mbuf_raw_video_frame *frame, *packed, *nostride, *aligned;
 
 	init_frame_info(&frame_info, true);
 
@@ -346,12 +348,48 @@ static void test_mbuf_raw_video_frame_scattered(void)
 	ret = mbuf_raw_video_frame_release_packed_buffer(packed, data);
 	CU_ASSERT_EQUAL(ret, 0);
 
+	/* Get a memory for the copied frame */
+	ret = mbuf_pool_get(pool, &memalign);
+	CU_ASSERT_EQUAL(ret, 0);
+
+	/* Copy the frame into the destination memory with alignment
+	 * constraints, finalize the frame and unref the memory */
+	unsigned int plane_stride_align[3] = {MBUF_TEST_STRIDE_ALIGN,
+					      MBUF_TEST_STRIDE_ALIGN,
+					      MBUF_TEST_STRIDE_ALIGN};
+	unsigned int plane_scanline_align[3] = {MBUF_TEST_SCANLINE_ALIGN,
+						MBUF_TEST_SCANLINE_ALIGN,
+						MBUF_TEST_SCANLINE_ALIGN};
+	unsigned int plane_size_align[3] = {MBUF_TEST_SIZE_ALIGN,
+					    MBUF_TEST_SIZE_ALIGN,
+					    MBUF_TEST_SIZE_ALIGN};
+	ret = mbuf_raw_video_frame_copy_with_align(frame,
+						   memalign,
+						   plane_stride_align,
+						   plane_scanline_align,
+						   plane_size_align,
+						   &aligned);
+	CU_ASSERT_EQUAL(ret, 0);
+	ret = mbuf_raw_video_frame_finalize(aligned);
+	CU_ASSERT_EQUAL(ret, 0);
+	ret = mbuf_mem_unref(memalign);
+	CU_ASSERT_EQUAL(ret, 0);
+
+	/* Aligned version should be bigger than the base version */
+	ssize_t aligned_false =
+		mbuf_raw_video_frame_get_packed_size(aligned, false);
+	CU_ASSERT(aligned_false > 0);
+	CU_ASSERT(base < aligned_false);
+	CU_ASSERT_EQUAL(aligned_false, 3 * MBUF_TEST_SIZE_ALIGN);
+
 	/* Cleanup */
 	ret = mbuf_raw_video_frame_unref(frame);
 	CU_ASSERT_EQUAL(ret, 0);
 	ret = mbuf_raw_video_frame_unref(packed);
 	CU_ASSERT_EQUAL(ret, 0);
 	ret = mbuf_raw_video_frame_unref(nostride);
+	CU_ASSERT_EQUAL(ret, 0);
+	ret = mbuf_raw_video_frame_unref(aligned);
 	CU_ASSERT_EQUAL(ret, 0);
 	ret = mbuf_pool_destroy(pool);
 	CU_ASSERT_EQUAL(ret, 0);
@@ -664,6 +702,15 @@ static void test_mbuf_raw_video_frame_bad_args(void)
 	ret = mbuf_raw_video_frame_copy(frame, NULL, false, &frame_cp);
 	CU_ASSERT_EQUAL(ret, -EINVAL);
 	ret = mbuf_raw_video_frame_copy(frame, mem_cp, false, NULL);
+	CU_ASSERT_EQUAL(ret, -EINVAL);
+	ret = mbuf_raw_video_frame_copy_with_align(
+		NULL, mem_cp, NULL, NULL, NULL, &frame_cp);
+	CU_ASSERT_EQUAL(ret, -EINVAL);
+	ret = mbuf_raw_video_frame_copy_with_align(
+		frame, NULL, NULL, NULL, NULL, &frame_cp);
+	CU_ASSERT_EQUAL(ret, -EINVAL);
+	ret = mbuf_raw_video_frame_copy_with_align(
+		frame, mem_cp, NULL, NULL, NULL, NULL);
 	CU_ASSERT_EQUAL(ret, -EINVAL);
 	ret = mbuf_raw_video_frame_get_frame_info(NULL, &frame_info);
 	CU_ASSERT_EQUAL(ret, -EINVAL);
@@ -1325,12 +1372,19 @@ static void test_mbuf_raw_video_frame_queue_drop(void)
 }
 
 
+struct mbuf_ancillary_data_dyn_test {
+	char *dyn_str;
+};
+
+
 struct mbuf_ancillary_data_test {
 	const char *str_name;
 	const char *str_value;
 	bool has_str;
 	const char *buf_name;
 	uint8_t buf_value[5];
+	const char *buf_dyn_name;
+	struct mbuf_ancillary_data_dyn_test buf_dyn_value;
 	bool has_buf;
 };
 
@@ -1365,6 +1419,19 @@ static bool ancillary_iterator(struct mbuf_ancillary_data *data, void *userdata)
 }
 
 
+static void
+mbuf_raw_video_frame_ancillary_data_cleaner_cb(struct mbuf_ancillary_data *data,
+					       void *userdata)
+{
+	struct mbuf_ancillary_data_dyn_test *buf_dyn_value =
+		(struct mbuf_ancillary_data_dyn_test *)userdata;
+	CU_ASSERT_PTR_NOT_NULL_FATAL(buf_dyn_value->dyn_str);
+
+	free(buf_dyn_value->dyn_str);
+	buf_dyn_value->dyn_str = NULL;
+}
+
+
 static void test_mbuf_raw_video_frame_ancillary_data(void)
 {
 	int ret;
@@ -1372,11 +1439,14 @@ static void test_mbuf_raw_video_frame_ancillary_data(void)
 	struct mbuf_mem *mem;
 	struct mbuf_raw_video_frame *frame, *copy;
 
+	struct mbuf_ancillary_data_cbs ancillary_cbs = {};
 	struct mbuf_ancillary_data_test adt = {
 		.str_name = "str",
 		.str_value = "test",
 		.buf_name = "buf",
 		.buf_value = {1, 2, 3, 4, 5},
+		.buf_dyn_name = "buf_dyn",
+		.buf_dyn_value = {},
 	};
 
 	init_frame_info(&frame_info, false);
@@ -1422,6 +1492,30 @@ static void test_mbuf_raw_video_frame_ancillary_data(void)
 	CU_ASSERT_EQUAL(ret, 0);
 	CU_ASSERT_FALSE(adt.has_str);
 	CU_ASSERT_FALSE(adt.has_buf);
+
+	/* Allocate dynamic data that will be freed by the
+	 * ancillary_data_cleaner_cb */
+	adt.buf_dyn_value.dyn_str = strdup("dyn_str");
+	CU_ASSERT_PTR_NOT_NULL_FATAL(adt.buf_dyn_value.dyn_str);
+
+	ancillary_cbs.cleaner = mbuf_raw_video_frame_ancillary_data_cleaner_cb;
+	ancillary_cbs.cleaner_userdata = &adt.buf_dyn_value;
+
+	/* Add the dynamic buffer */
+	ret = mbuf_raw_video_frame_add_ancillary_buffer_with_cbs(
+		frame,
+		adt.buf_dyn_name,
+		&adt.buf_dyn_value,
+		sizeof(adt.buf_dyn_value),
+		&ancillary_cbs);
+	CU_ASSERT_EQUAL(ret, 0);
+
+	/* Delete the ancillary buffer, ancillary_data_cleaner_cb must be
+	 * called to free dyn_str */
+	ret = mbuf_raw_video_frame_remove_ancillary_data(frame,
+							 adt.buf_dyn_name);
+	CU_ASSERT_EQUAL(ret, 0);
+	CU_ASSERT_PTR_NULL(adt.buf_dyn_value.dyn_str);
 
 	/* Test the single element getter */
 	struct mbuf_ancillary_data *tmp;

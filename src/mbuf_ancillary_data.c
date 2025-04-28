@@ -29,6 +29,7 @@
 #include "mbuf_internal.h"
 
 #include <errno.h>
+#include <inttypes.h>
 #include <stdio.h>
 #include <stdlib.h>
 
@@ -59,6 +60,9 @@ int mbuf_ancillary_data_unref(struct mbuf_ancillary_data *data)
 	/* If the refcount was >1, nothing to do */
 	if (prev > 1)
 		return 0;
+
+	if (data->cbs.cleaner)
+		data->cbs.cleaner(data, data->cbs.cleaner_userdata);
 
 	free(data->name);
 	free(data->buffer);
@@ -102,4 +106,74 @@ const void *mbuf_ancillary_data_get_buffer(struct mbuf_ancillary_data *data,
 	if (len)
 		*len = data->len;
 	return data->buffer;
+}
+
+
+int mbuf_ancillary_data_build_key(const char *name, uintptr_t ptr, char **key)
+{
+	int ret;
+
+	ULOG_ERRNO_RETURN_ERR_IF(!name, EINVAL);
+	ULOG_ERRNO_RETURN_ERR_IF(!key, EINVAL);
+
+	*key = NULL;
+
+	if (ptr != 0) {
+		ret = asprintf(key, "%s:%" PRIxPTR, name, ptr);
+		if (ret < 0)
+			return -ENOMEM;
+	} else {
+		*key = strdup(name);
+		if (*key == NULL)
+			return -ENOMEM;
+	}
+
+	return 0;
+}
+
+
+int mbuf_ancillary_data_parse_key(const char *key, char **name, uintptr_t *ptr)
+{
+	int ret;
+	char *_key = NULL, *_name = NULL, *_ptr_str = NULL;
+	char *savedptr = NULL;
+
+	ULOG_ERRNO_RETURN_ERR_IF(!key, EINVAL);
+	ULOG_ERRNO_RETURN_ERR_IF(!name, EINVAL);
+
+	_key = strdup(key);
+	if (_key == NULL)
+		return -ENOMEM;
+
+	*name = NULL;
+	*ptr = 0;
+
+	_name = strtok_r(_key, ":", &savedptr);
+	_ptr_str = strtok_r(NULL, ":", &savedptr);
+
+	if (_name == NULL) {
+		ret = -EINVAL;
+		goto out;
+	}
+	if (_ptr_str != NULL) {
+		char *end_ptr = NULL;
+		errno = 0;
+		long unsigned int parsed_ulong = strtoul(_ptr_str, &end_ptr, 0);
+		if (_ptr_str[0] == '\0' || end_ptr[0] != '\0' || errno != 0) {
+			ret = -errno;
+			goto out;
+		}
+		*ptr = (uintptr_t)parsed_ulong;
+	}
+	*name = strdup(_name);
+	if (*name == NULL) {
+		ret = -ENOMEM;
+		goto out;
+	}
+
+	ret = 0;
+
+out:
+	free(_key);
+	return ret;
 }

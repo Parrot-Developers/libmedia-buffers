@@ -86,7 +86,6 @@ static void mbuf_raw_video_frame_cleaner(void *rframe)
 			frame->planes[i].mem = NULL;
 		}
 	}
-	mbuf_base_frame_set_metadata(&frame->base, NULL);
 	mbuf_base_frame_deinit(&frame->base);
 	free(frame);
 }
@@ -185,8 +184,6 @@ int mbuf_raw_video_frame_set_metadata(struct mbuf_raw_video_frame *frame,
 {
 	ULOG_ERRNO_RETURN_ERR_IF(!frame, EINVAL);
 	ULOG_ERRNO_RETURN_ERR_IF(!meta, EINVAL);
-	ULOG_ERRNO_RETURN_ERR_IF(mbuf_base_frame_is_finalized(&frame->base),
-				 EBUSY);
 
 	return mbuf_base_frame_set_metadata(&frame->base, meta);
 }
@@ -282,8 +279,6 @@ int mbuf_raw_video_frame_get_metadata(struct mbuf_raw_video_frame *frame,
 	ULOG_ERRNO_RETURN_ERR_IF(!meta, EINVAL);
 	*meta = NULL;
 	ULOG_ERRNO_RETURN_ERR_IF(!frame, EINVAL);
-	ULOG_ERRNO_RETURN_ERR_IF(!mbuf_base_frame_is_finalized(&frame->base),
-				 EBUSY);
 
 	return mbuf_base_frame_get_metadata(&frame->base, meta);
 }
@@ -633,6 +628,91 @@ out:
 }
 
 
+int mbuf_raw_video_frame_copy_with_align(
+	struct mbuf_raw_video_frame *frame,
+	struct mbuf_mem *dst,
+	const unsigned int *plane_stride_align,
+	const unsigned int *plane_scanline_align,
+	const unsigned int *plane_size_align,
+	struct mbuf_raw_video_frame **ret_obj)
+{
+	int ret;
+	size_t offset;
+	unsigned int i;
+	struct mbuf_raw_video_frame *new_frame = NULL;
+	size_t plane_size[VDEF_RAW_MAX_PLANE_COUNT] = {0};
+	size_t plane_stride[VDEF_RAW_MAX_PLANE_COUNT] = {0};
+
+	ULOG_ERRNO_RETURN_ERR_IF(!ret_obj, EINVAL);
+	*ret_obj = NULL;
+	ULOG_ERRNO_RETURN_ERR_IF(!frame, EINVAL);
+	ULOG_ERRNO_RETURN_ERR_IF(!dst, EINVAL);
+	ULOG_ERRNO_RETURN_ERR_IF(!dst->data, EINVAL);
+	ULOG_ERRNO_RETURN_ERR_IF(!mbuf_base_frame_is_finalized(&frame->base),
+				 EBUSY);
+
+	ret = mbuf_base_frame_rdlock(&frame->base);
+	if (ret != 0)
+		return ret;
+
+	ret = mbuf_raw_video_frame_new(&frame->info, &new_frame);
+	if (ret != 0)
+		goto out;
+
+	ret = mbuf_raw_video_frame_foreach_ancillary_data(
+		frame, mbuf_raw_video_frame_ancillary_data_copier, new_frame);
+	if (ret != 0)
+		goto out;
+
+	ret = vdef_calc_raw_frame_size(&frame->info.format,
+				       &frame->info.info.resolution,
+				       plane_stride,
+				       plane_stride_align,
+				       NULL,
+				       plane_scanline_align,
+				       plane_size,
+				       plane_size_align);
+	if (ret != 0)
+		goto out;
+
+	for (i = 0, offset = 0; i < frame->nplanes; i++) {
+		uint8_t *cpsrc = frame->planes[i].data;
+		uint8_t *cpdst = dst->data;
+		cpdst += offset;
+		size_t nlines = plane_size[i] / plane_stride[i];
+		if (dst->size < offset + plane_size[i]) {
+			ret = -ENOSPC;
+			goto out;
+		}
+		for (size_t j = 0; j < nlines; j++) {
+			size_t dst_offset = j * plane_stride[i];
+			size_t src_offset = j * frame->info.plane_stride[i];
+			memcpy(cpdst + dst_offset,
+			       cpsrc + src_offset,
+			       plane_stride[i]);
+		}
+		ret = mbuf_raw_video_frame_set_plane(
+			new_frame, i, dst, offset, plane_size[i]);
+		if (ret != 0)
+			goto out;
+		offset += plane_size[i];
+		new_frame->info.plane_stride[i] = plane_stride[i];
+	}
+
+	mbuf_base_frame_set_metadata(&new_frame->base, frame->base.meta);
+
+out:
+	/* Release read-lock before returning */
+	mbuf_base_frame_rdunlock(&frame->base);
+
+	if (ret != 0 && new_frame)
+		mbuf_raw_video_frame_unref(new_frame);
+	else
+		*ret_obj = new_frame;
+	return ret;
+}
+
+
 int mbuf_raw_video_frame_get_frame_info(struct mbuf_raw_video_frame *frame,
 					struct vdef_raw_frame *frame_info)
 {
@@ -673,6 +753,23 @@ int mbuf_raw_video_frame_add_ancillary_buffer(
 
 	return mbuf_base_frame_add_ancillary_buffer(
 		&frame->base, name, buffer, len);
+}
+
+
+int mbuf_raw_video_frame_add_ancillary_buffer_with_cbs(
+	struct mbuf_raw_video_frame *frame,
+	const char *name,
+	const void *buffer,
+	size_t len,
+	const struct mbuf_ancillary_data_cbs *cbs)
+{
+	ULOG_ERRNO_RETURN_ERR_IF(!frame, EINVAL);
+	ULOG_ERRNO_RETURN_ERR_IF(!name, EINVAL);
+	ULOG_ERRNO_RETURN_ERR_IF(!buffer, EINVAL);
+	ULOG_ERRNO_RETURN_ERR_IF(len == 0, EINVAL);
+
+	return mbuf_base_frame_add_ancillary_buffer_with_cbs(
+		&frame->base, name, buffer, len, cbs);
 }
 
 

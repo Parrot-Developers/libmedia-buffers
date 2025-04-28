@@ -40,9 +40,12 @@
 typedef void (*frame_cleaner_t)(void *frame);
 
 struct mbuf_base_frame {
-	struct vmeta_frame *meta;
 	void *parent;
 	frame_cleaner_t cleaner;
+
+	pthread_mutex_t meta_lock;
+	bool meta_lock_created;
+	struct vmeta_frame *meta;
 
 	pthread_mutex_t ancillary_lock;
 	bool ancillary_lock_created;
@@ -105,6 +108,13 @@ int mbuf_base_frame_add_ancillary_buffer(struct mbuf_base_frame *frame,
 					 const char *name,
 					 const void *buffer,
 					 size_t len);
+
+int mbuf_base_frame_add_ancillary_buffer_with_cbs(
+	struct mbuf_base_frame *frame,
+	const char *name,
+	const void *buffer,
+	size_t len,
+	const struct mbuf_ancillary_data_cbs *cbs);
 
 int mbuf_base_frame_add_ancillary_data(struct mbuf_base_frame *frame,
 				       struct mbuf_ancillary_data *data);

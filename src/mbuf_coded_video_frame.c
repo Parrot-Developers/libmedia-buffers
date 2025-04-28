@@ -84,7 +84,6 @@ static void mbuf_coded_video_frame_cleaner(void *cframe)
 		if (ret != 0)
 			ULOG_ERRNO("mbuf_mem_unref(destroy)", -ret);
 	}
-	mbuf_base_frame_set_metadata(&frame->base, NULL);
 	mbuf_base_frame_deinit(&frame->base);
 	free(frame->nalus);
 	free(frame);
@@ -163,8 +162,6 @@ int mbuf_coded_video_frame_set_metadata(struct mbuf_coded_video_frame *frame,
 {
 	ULOG_ERRNO_RETURN_ERR_IF(!frame, EINVAL);
 	ULOG_ERRNO_RETURN_ERR_IF(!meta, EINVAL);
-	ULOG_ERRNO_RETURN_ERR_IF(mbuf_base_frame_is_finalized(&frame->base),
-				 EBUSY);
 
 	return mbuf_base_frame_set_metadata(&frame->base, meta);
 }
@@ -295,8 +292,6 @@ int mbuf_coded_video_frame_get_metadata(struct mbuf_coded_video_frame *frame,
 	ULOG_ERRNO_RETURN_ERR_IF(!meta, EINVAL);
 	*meta = NULL;
 	ULOG_ERRNO_RETURN_ERR_IF(!frame, EINVAL);
-	ULOG_ERRNO_RETURN_ERR_IF(!mbuf_base_frame_is_finalized(&frame->base),
-				 EBUSY);
 
 	return mbuf_base_frame_get_metadata(&frame->base, meta);
 }
@@ -640,6 +635,23 @@ int mbuf_coded_video_frame_add_ancillary_buffer(
 
 	return mbuf_base_frame_add_ancillary_buffer(
 		&frame->base, name, buffer, len);
+}
+
+
+int mbuf_coded_video_frame_add_ancillary_buffer_with_cbs(
+	struct mbuf_coded_video_frame *frame,
+	const char *name,
+	const void *buffer,
+	size_t len,
+	const struct mbuf_ancillary_data_cbs *cbs)
+{
+	ULOG_ERRNO_RETURN_ERR_IF(!frame, EINVAL);
+	ULOG_ERRNO_RETURN_ERR_IF(!name, EINVAL);
+	ULOG_ERRNO_RETURN_ERR_IF(!buffer, EINVAL);
+	ULOG_ERRNO_RETURN_ERR_IF(len == 0, EINVAL);
+
+	return mbuf_base_frame_add_ancillary_buffer_with_cbs(
+		&frame->base, name, buffer, len, cbs);
 }
 
 

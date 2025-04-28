@@ -34,6 +34,8 @@ static CU_SuiteInfo s_suites[] = {
 	 NULL,
 	 NULL,
 	 g_mbuf_test_coded_video_frame},
+	{(char *)"audio_frame", NULL, NULL, g_mbuf_test_audio_frame},
+	{(char *)"ancillary", NULL, NULL, g_mbuf_test_ancillary},
 	CU_SUITE_INFO_NULL,
 };
 

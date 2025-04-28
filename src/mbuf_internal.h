@@ -36,6 +36,7 @@ struct mbuf_ancillary_data {
 	void *buffer;
 	size_t len;
 	bool is_string;
+	struct mbuf_ancillary_data_cbs cbs;
 
 	atomic_int ref_count;
 };

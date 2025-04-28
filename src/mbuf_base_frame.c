@@ -67,6 +67,11 @@ int mbuf_base_frame_init(struct mbuf_base_frame *frame,
 		return -ret;
 	frame->ancillary_lock_created = true;
 
+	ret = pthread_mutex_init(&frame->meta_lock, NULL);
+	if (ret != 0)
+		return -ret;
+	frame->meta_lock_created = true;
+
 	return 0;
 }
 
@@ -74,6 +79,12 @@ int mbuf_base_frame_init(struct mbuf_base_frame *frame,
 int mbuf_base_frame_deinit(struct mbuf_base_frame *frame)
 {
 	struct mbuf_ancillary_data_holder *holder, *tmp;
+
+	if (frame->meta_lock_created) {
+		mbuf_base_frame_set_metadata(frame, NULL);
+		pthread_mutex_destroy(&frame->meta_lock);
+	}
+
 	if (!frame->ancillary_lock_created)
 		return 0;
 	pthread_mutex_lock(&frame->ancillary_lock);
@@ -117,12 +128,14 @@ int mbuf_base_frame_set_metadata(struct mbuf_base_frame *frame,
 {
 	int ret;
 
+	pthread_mutex_lock(&frame->meta_lock);
+
 	/* Remove old metadata if present */
 	if (frame->meta) {
 		ret = vmeta_frame_unref(frame->meta);
 		if (ret != 0) {
 			ULOG_ERRNO("vmeta_frame_unref", -ret);
-			return ret;
+			goto out;
 		}
 		frame->meta = NULL;
 	}
@@ -132,29 +145,43 @@ int mbuf_base_frame_set_metadata(struct mbuf_base_frame *frame,
 		ret = vmeta_frame_ref(meta);
 		if (ret != 0) {
 			ULOG_ERRNO("vmeta_frame_ref", -ret);
-			return ret;
+			goto out;
 		}
 		frame->meta = meta;
 	}
 
-	return 0;
+	ret = 0;
+
+out:
+	pthread_mutex_unlock(&frame->meta_lock);
+	return ret;
 }
 
 
 int mbuf_base_frame_get_metadata(struct mbuf_base_frame *frame,
 				 struct vmeta_frame **meta)
 {
+	int ret;
+
+	*meta = NULL;
+
+	pthread_mutex_lock(&frame->meta_lock);
 
 	if (!frame->meta) {
-		*meta = NULL;
-		return -ENOENT;
+		ret = -ENOENT;
+		goto out;
 	}
 
-	int ret = vmeta_frame_ref(frame->meta);
+	ret = vmeta_frame_ref(frame->meta);
 	if (ret != 0)
-		return ret;
+		goto out;
+
 	*meta = frame->meta;
-	return 0;
+
+	ret = 0;
+out:
+	pthread_mutex_unlock(&frame->meta_lock);
+	return ret;
 }
 
 
@@ -233,12 +260,13 @@ out:
 }
 
 
-static int
-mbuf_base_frame_create_ancillary_internal(struct mbuf_base_frame *frame,
-					  const char *name,
-					  const void *buffer,
-					  size_t len,
-					  bool is_string)
+static int mbuf_base_frame_create_ancillary_internal(
+	struct mbuf_base_frame *frame,
+	const char *name,
+	const void *buffer,
+	size_t len,
+	bool is_string,
+	const struct mbuf_ancillary_data_cbs *cbs)
 {
 	int ret = 0;
 	struct mbuf_ancillary_data *ad;
@@ -264,6 +292,9 @@ mbuf_base_frame_create_ancillary_internal(struct mbuf_base_frame *frame,
 	}
 	memcpy(ad->buffer, buffer, len);
 
+	if (cbs != NULL)
+		memcpy(&ad->cbs, cbs, sizeof(*cbs));
+
 	ret = mbuf_base_frame_add_ancillary_internal(frame, ad);
 
 out:
@@ -278,7 +309,7 @@ int mbuf_base_frame_add_ancillary_string(struct mbuf_base_frame *frame,
 {
 	size_t len = strlen(value) + 1;
 	return mbuf_base_frame_create_ancillary_internal(
-		frame, name, value, len, true);
+		frame, name, value, len, true, NULL);
 }
 
 
@@ -288,7 +319,19 @@ int mbuf_base_frame_add_ancillary_buffer(struct mbuf_base_frame *frame,
 					 size_t len)
 {
 	return mbuf_base_frame_create_ancillary_internal(
-		frame, name, buffer, len, false);
+		frame, name, buffer, len, false, NULL);
+}
+
+
+int mbuf_base_frame_add_ancillary_buffer_with_cbs(
+	struct mbuf_base_frame *frame,
+	const char *name,
+	const void *buffer,
+	size_t len,
+	const struct mbuf_ancillary_data_cbs *cbs)
+{
+	return mbuf_base_frame_create_ancillary_internal(
+		frame, name, buffer, len, false, cbs);
 }
 
 
