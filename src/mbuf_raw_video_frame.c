@@ -26,7 +26,7 @@
 
 #include <media-buffers/mbuf_raw_video_frame.h>
 
-#include <futils/list.h>
+#include <futils/futils.h>
 #include <stdatomic.h>
 #include <string.h>
 
@@ -655,6 +655,15 @@ int mbuf_raw_video_frame_copy_with_align(
 	if (ret != 0)
 		return ret;
 
+	/* Ensure all strides are set */
+	for (i = 0; i < frame->nplanes; i++) {
+		if (frame->info.plane_stride[i] == 0) {
+			ret = -EINVAL;
+			ULOG_ERRNO("invalid stride[%u]", -ret, i);
+			goto out;
+		}
+	}
+
 	ret = mbuf_raw_video_frame_new(&frame->info, &new_frame);
 	if (ret != 0)
 		goto out;
@@ -679,7 +688,10 @@ int mbuf_raw_video_frame_copy_with_align(
 		uint8_t *cpsrc = frame->planes[i].data;
 		uint8_t *cpdst = dst->data;
 		cpdst += offset;
-		size_t nlines = plane_size[i] / plane_stride[i];
+		size_t src_lines =
+			frame->planes[i].len / frame->info.plane_stride[i];
+		size_t dst_lines = plane_size[i] / plane_stride[i];
+		size_t nlines = MIN(dst_lines, src_lines);
 		if (dst->size < offset + plane_size[i]) {
 			ret = -ENOSPC;
 			goto out;
@@ -687,9 +699,12 @@ int mbuf_raw_video_frame_copy_with_align(
 		for (size_t j = 0; j < nlines; j++) {
 			size_t dst_offset = j * plane_stride[i];
 			size_t src_offset = j * frame->info.plane_stride[i];
+			size_t copy_len = MIN(plane_stride[i],
+					      frame->info.plane_stride[i]);
+			/* Copy line without padding in src/dst */
 			memcpy(cpdst + dst_offset,
 			       cpsrc + src_offset,
-			       plane_stride[i]);
+			       copy_len);
 		}
 		ret = mbuf_raw_video_frame_set_plane(
 			new_frame, i, dst, offset, plane_size[i]);

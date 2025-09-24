@@ -149,7 +149,7 @@ int mbuf_pool_get(struct mbuf_pool *pool, struct mbuf_mem **ret_obj)
 	ULOG_ERRNO_RETURN_ERR_IF(!pool, EINVAL);
 	ULOG_ERRNO_RETURN_ERR_IF(!ret_obj, EINVAL);
 
-	ret = pthread_mutex_lock(&pool->lock);
+	pthread_mutex_lock(&pool->lock);
 
 	list_walk_entry_forward_safe(&pool->memories, mem, tmp, node)
 	{

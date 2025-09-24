@@ -309,8 +309,8 @@ static void test_mbuf_raw_video_frame_scattered(void)
 	ret = mbuf_raw_video_frame_release_packed_buffer(packed, data);
 	CU_ASSERT_EQUAL(ret, 0);
 
-	/* Get a memory for the copied frame */
-	ret = mbuf_pool_get(pool, &memnostride);
+	/* Get a memory for the copied frame (exact size) */
+	ret = mbuf_mem_generic_new(required_len, &memnostride);
 	CU_ASSERT_EQUAL(ret, 0);
 
 	/* Copy the frame into the destination memory removing stride, finalize
@@ -363,7 +363,7 @@ static void test_mbuf_raw_video_frame_scattered(void)
 	unsigned int plane_size_align[3] = {MBUF_TEST_SIZE_ALIGN,
 					    MBUF_TEST_SIZE_ALIGN,
 					    MBUF_TEST_SIZE_ALIGN};
-	ret = mbuf_raw_video_frame_copy_with_align(frame,
+	ret = mbuf_raw_video_frame_copy_with_align(nostride,
 						   memalign,
 						   plane_stride_align,
 						   plane_scanline_align,
