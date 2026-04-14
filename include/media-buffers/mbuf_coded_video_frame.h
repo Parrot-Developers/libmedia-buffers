@@ -118,7 +118,7 @@ struct mbuf_coded_video_frame_queue_args {
  * @return 0 on success, negative errno on error.
  */
 MBUF_API int
-mbuf_coded_video_frame_new(struct vdef_coded_frame *frame_info,
+mbuf_coded_video_frame_new(const struct vdef_coded_frame *frame_info,
 			   struct mbuf_coded_video_frame **ret_obj);
 
 
@@ -135,9 +135,9 @@ mbuf_coded_video_frame_new(struct vdef_coded_frame *frame_info,
  *
  * @return 0 on success, negative errno on error.
  */
-MBUF_API int
-mbuf_coded_video_frame_set_callbacks(struct mbuf_coded_video_frame *frame,
-				     struct mbuf_coded_video_frame_cbs *cbs);
+MBUF_API int mbuf_coded_video_frame_set_callbacks(
+	struct mbuf_coded_video_frame *frame,
+	const struct mbuf_coded_video_frame_cbs *cbs);
 
 
 /**
@@ -168,6 +168,64 @@ MBUF_API int mbuf_coded_video_frame_ref(struct mbuf_coded_video_frame *frame);
 MBUF_API int mbuf_coded_video_frame_unref(struct mbuf_coded_video_frame *frame);
 
 
+/**
+ * Lock the frame as read-only.
+ * Multiple read locks can be taken concurrently. The write lock cannot be
+ * taken while a read lock is held.
+ * If the frame has not been previously finalized, -EBUSY is returned.
+ *
+ * @note When no longer used, the lock must be released with
+ * mbuf_coded_video_frame_rdunlock().
+ *
+ * @param frame: The frame.
+ *
+ * @return 0 on success, negative errno on error.
+ */
+MBUF_API int
+mbuf_coded_video_frame_rdlock(struct mbuf_coded_video_frame *frame);
+
+
+/**
+ * Unlock the frame as read-only.
+ * If the frame has not been previously finalized, -EBUSY is returned.
+ *
+ * @param frame: The frame.
+ *
+ * @return 0 on success, negative errno on error.
+ */
+MBUF_API int
+mbuf_coded_video_frame_rdunlock(struct mbuf_coded_video_frame *frame);
+
+
+/**
+ * Lock the frame as read-write.
+ * Only one write lock can be taken at a time. Read locks cannot be taken
+ * while the write lock is held.
+ * If the frame has not been previously finalized, -EBUSY is returned.
+ *
+ * @note When no longer used, the lock must be released with
+ * mbuf_coded_video_frame_wrunlock().
+ *
+ * @param frame: The frame.
+ *
+ * @return 0 on success, negative errno on error.
+ */
+MBUF_API int
+mbuf_coded_video_frame_wrlock(struct mbuf_coded_video_frame *frame);
+
+
+/**
+ * Unlock the frame as read-write.
+ * If the frame has not been previously finalized, -EBUSY is returned.
+ *
+ * @param frame: The frame.
+ *
+ * @return 0 on success, negative errno on error.
+ */
+MBUF_API int
+mbuf_coded_video_frame_wrunlock(struct mbuf_coded_video_frame *frame);
+
+
 /* Writer API */
 
 
@@ -182,9 +240,9 @@ MBUF_API int mbuf_coded_video_frame_unref(struct mbuf_coded_video_frame *frame);
  *
  * @return 0 on success, negative errno on error.
  */
-MBUF_API int
-mbuf_coded_video_frame_set_frame_info(struct mbuf_coded_video_frame *frame,
-				      struct vdef_coded_frame *frame_info);
+MBUF_API int mbuf_coded_video_frame_set_frame_info(
+	struct mbuf_coded_video_frame *frame,
+	const struct vdef_coded_frame *frame_info);
 
 
 /**
@@ -227,7 +285,7 @@ MBUF_API int
 mbuf_coded_video_frame_add_nalu(struct mbuf_coded_video_frame *frame,
 				struct mbuf_mem *mem,
 				size_t offset,
-				struct vdef_nalu *nalu);
+				const struct vdef_nalu *nalu);
 
 
 /**
@@ -254,7 +312,7 @@ MBUF_API int
 mbuf_coded_video_frame_insert_nalu(struct mbuf_coded_video_frame *frame,
 				   struct mbuf_mem *mem,
 				   size_t offset,
-				   struct vdef_nalu *nalu,
+				   const struct vdef_nalu *nalu,
 				   unsigned int index);
 
 
@@ -294,11 +352,11 @@ mbuf_coded_video_frame_finalize(struct mbuf_coded_video_frame *frame);
  *
  * @return 0 on success, negative errno on error.
  */
-MBUF_API int
-mbuf_coded_video_frame_uses_mem_from_pool(struct mbuf_coded_video_frame *frame,
-					  struct mbuf_pool *pool,
-					  bool *any,
-					  bool *all);
+MBUF_API int mbuf_coded_video_frame_uses_mem_from_pool(
+	const struct mbuf_coded_video_frame *frame,
+	const struct mbuf_pool *pool,
+	bool *any,
+	bool *all);
 
 
 /**
@@ -326,8 +384,8 @@ mbuf_coded_video_frame_get_metadata(struct mbuf_coded_video_frame *frame,
  *
  * @return The number of NALUs in the frame on success, negative errno on error.
  */
-MBUF_API int
-mbuf_coded_video_frame_get_nalu_count(struct mbuf_coded_video_frame *frame);
+MBUF_API int mbuf_coded_video_frame_get_nalu_count(
+	const struct mbuf_coded_video_frame *frame);
 
 
 /**
@@ -418,7 +476,7 @@ mbuf_coded_video_frame_get_rw_nalu(struct mbuf_coded_video_frame *frame,
 MBUF_API int
 mbuf_coded_video_frame_release_rw_nalu(struct mbuf_coded_video_frame *frame,
 				       unsigned int index,
-				       void *data);
+				       const void *data);
 
 
 /**
@@ -497,7 +555,7 @@ MBUF_API int mbuf_coded_video_frame_get_rw_packed_buffer(
  */
 MBUF_API int mbuf_coded_video_frame_release_rw_packed_buffer(
 	struct mbuf_coded_video_frame *frame,
-	void *data);
+	const void *data);
 
 /**
  * Get the packed-size of a coded video frame.
@@ -513,8 +571,8 @@ MBUF_API int mbuf_coded_video_frame_release_rw_packed_buffer(
  *
  * @return The size on success, negative errno on error.
  */
-MBUF_API ssize_t
-mbuf_coded_video_frame_get_packed_size(struct mbuf_coded_video_frame *frame);
+MBUF_API ssize_t mbuf_coded_video_frame_get_packed_size(
+	const struct mbuf_coded_video_frame *frame);
 
 
 /**
@@ -552,9 +610,9 @@ mbuf_coded_video_frame_copy(struct mbuf_coded_video_frame *frame,
  *
  * @return 0 on success, negative errno on error.
  */
-MBUF_API int
-mbuf_coded_video_frame_get_frame_info(struct mbuf_coded_video_frame *frame,
-				      struct vdef_coded_frame *frame_info);
+MBUF_API int mbuf_coded_video_frame_get_frame_info(
+	const struct mbuf_coded_video_frame *frame,
+	struct vdef_coded_frame *frame_info);
 
 
 /* Ancillary data API */

@@ -27,7 +27,9 @@
 #include "mbuf_test.h"
 
 static CU_SuiteInfo s_suites[] = {
+	{(char *)"memory_implem", NULL, NULL, g_mbuf_test_implem},
 	{(char *)"memory_pool", NULL, NULL, g_mbuf_test_pool},
+	{(char *)"memory_queue_cpp", NULL, NULL, g_mbuf_test_queue_cpp},
 	{(char *)"memory_wrap", NULL, NULL, g_mbuf_test_wrap},
 	{(char *)"raw_video_frame", NULL, NULL, g_mbuf_test_raw_video_frame},
 	{(char *)"coded_video_frame",

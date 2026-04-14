@@ -30,11 +30,12 @@
 #include <stdbool.h>
 #include <stdlib.h>
 
+#include "internal/mbuf_mem_internal.h"
+
 #define ULOG_TAG mbuf_mem
 #include <ulog.h>
 ULOG_DECLARE_TAG(ULOG_TAG);
 
-#include "internal/mbuf_mem_internal.h"
 
 #define MBUF_POOL_DEFAULT_NAME "default"
 
@@ -142,7 +143,8 @@ error:
 
 int mbuf_pool_get(struct mbuf_pool *pool, struct mbuf_mem **ret_obj)
 {
-	struct mbuf_mem *mem, *tmp;
+	struct mbuf_mem *mem;
+	struct mbuf_mem *tmp;
 	unsigned int zero;
 	int ret;
 
@@ -202,7 +204,7 @@ exit:
 }
 
 
-const char *mbuf_pool_get_name(struct mbuf_pool *pool)
+const char *mbuf_pool_get_name(const struct mbuf_pool *pool)
 {
 	ULOG_ERRNO_RETURN_VAL_IF(!pool, EINVAL, NULL);
 
@@ -228,7 +230,8 @@ int mbuf_pool_get_count(struct mbuf_pool *pool, size_t *count, size_t *free)
 
 int mbuf_pool_destroy(struct mbuf_pool *pool)
 {
-	struct mbuf_mem *mem, *tmp;
+	struct mbuf_mem *mem;
+	struct mbuf_mem *tmp;
 	unsigned int zero;
 
 	if (!pool)

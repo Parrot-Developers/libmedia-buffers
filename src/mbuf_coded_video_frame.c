@@ -72,13 +72,13 @@ static void mbuf_coded_video_frame_cleaner(void *cframe)
 		frame->cbs.pre_release(frame, frame->cbs.pre_release_userdata);
 
 	int rc = mbuf_rwlock_get_value(&frame->base.rwlock);
-	if (rc == RWLOCK_WRLOCKED)
-		ULOGW("1 rw-nalu/packed-buffer not released"
-		      " during frame deletion");
-	else if (rc > 0)
-		ULOGW("%d ro-nalu/packed-buffer not released"
-		      " during frame deletion",
-		      rc);
+	if (rc == RWLOCK_WRLOCKED) {
+		ULOGW("write lock not released before frame deletion");
+	} else if (rc > 0) {
+		ULOGW("%d read lock%s not released before frame deletion",
+		      rc,
+		      (rc == 1) ? "" : "s");
+	}
 	for (unsigned int i = 0; i < frame->nnalus; i++) {
 		int ret = mbuf_mem_unref(frame->nalus[i].mem);
 		if (ret != 0)
@@ -90,7 +90,7 @@ static void mbuf_coded_video_frame_cleaner(void *cframe)
 }
 
 
-int mbuf_coded_video_frame_new(struct vdef_coded_frame *frame_info,
+int mbuf_coded_video_frame_new(const struct vdef_coded_frame *frame_info,
 			       struct mbuf_coded_video_frame **ret_obj)
 {
 	ULOG_ERRNO_RETURN_ERR_IF(!ret_obj, EINVAL);
@@ -113,8 +113,9 @@ int mbuf_coded_video_frame_new(struct vdef_coded_frame *frame_info,
 }
 
 
-int mbuf_coded_video_frame_set_callbacks(struct mbuf_coded_video_frame *frame,
-					 struct mbuf_coded_video_frame_cbs *cbs)
+int mbuf_coded_video_frame_set_callbacks(
+	struct mbuf_coded_video_frame *frame,
+	const struct mbuf_coded_video_frame_cbs *cbs)
 {
 	ULOG_ERRNO_RETURN_ERR_IF(!frame, EINVAL);
 	ULOG_ERRNO_RETURN_ERR_IF(!cbs, EINVAL);
@@ -142,11 +143,48 @@ int mbuf_coded_video_frame_unref(struct mbuf_coded_video_frame *frame)
 }
 
 
+int mbuf_coded_video_frame_rdlock(struct mbuf_coded_video_frame *frame)
+{
+	ULOG_ERRNO_RETURN_ERR_IF(!frame, EINVAL);
+	ULOG_ERRNO_RETURN_ERR_IF(!mbuf_base_frame_is_finalized(&frame->base),
+				 EBUSY);
+	return mbuf_base_frame_rdlock(&frame->base);
+}
+
+
+int mbuf_coded_video_frame_rdunlock(struct mbuf_coded_video_frame *frame)
+{
+	ULOG_ERRNO_RETURN_ERR_IF(!frame, EINVAL);
+	ULOG_ERRNO_RETURN_ERR_IF(!mbuf_base_frame_is_finalized(&frame->base),
+				 EBUSY);
+	return mbuf_base_frame_rdunlock(&frame->base);
+}
+
+
+int mbuf_coded_video_frame_wrlock(struct mbuf_coded_video_frame *frame)
+{
+	ULOG_ERRNO_RETURN_ERR_IF(!frame, EINVAL);
+	ULOG_ERRNO_RETURN_ERR_IF(!mbuf_base_frame_is_finalized(&frame->base),
+				 EBUSY);
+	return mbuf_base_frame_wrlock(&frame->base);
+}
+
+
+int mbuf_coded_video_frame_wrunlock(struct mbuf_coded_video_frame *frame)
+{
+	ULOG_ERRNO_RETURN_ERR_IF(!frame, EINVAL);
+	ULOG_ERRNO_RETURN_ERR_IF(!mbuf_base_frame_is_finalized(&frame->base),
+				 EBUSY);
+	return mbuf_base_frame_wrunlock(&frame->base);
+}
+
+
 /* Writer API */
 
 
-int mbuf_coded_video_frame_set_frame_info(struct mbuf_coded_video_frame *frame,
-					  struct vdef_coded_frame *frame_info)
+int mbuf_coded_video_frame_set_frame_info(
+	struct mbuf_coded_video_frame *frame,
+	const struct vdef_coded_frame *frame_info)
 {
 	ULOG_ERRNO_RETURN_ERR_IF(!frame, EINVAL);
 	ULOG_ERRNO_RETURN_ERR_IF(!frame_info, EINVAL);
@@ -171,7 +209,7 @@ static int mbuf_coded_video_frame_insert_nalu_internal(
 	struct mbuf_coded_video_frame *frame,
 	struct mbuf_mem *mem,
 	size_t offset,
-	struct vdef_nalu *nalu,
+	const struct vdef_nalu *nalu,
 	uint32_t index)
 {
 	/* If the index is greater than the actual number of NALUs,
@@ -179,11 +217,14 @@ static int mbuf_coded_video_frame_insert_nalu_internal(
 	if (index > frame->nnalus)
 		index = frame->nnalus;
 
-	struct mbuf_coded_video_frame_nalu *new =
-		realloc(frame->nalus, (frame->nnalus + 1) * sizeof(*new));
-	if (!new)
+	if (frame->nnalus > UINT_MAX - 1)
 		return -ENOMEM;
-	frame->nalus = new;
+
+	struct mbuf_coded_video_frame_nalu *nalus =
+		realloc(frame->nalus, (frame->nnalus + 1) * sizeof(*nalus));
+	if (!nalus)
+		return -ENOMEM;
+	frame->nalus = nalus;
 
 	int ret = mbuf_mem_ref(mem);
 	if (ret != 0) {
@@ -212,7 +253,7 @@ static int mbuf_coded_video_frame_insert_nalu_internal(
 int mbuf_coded_video_frame_add_nalu(struct mbuf_coded_video_frame *frame,
 				    struct mbuf_mem *mem,
 				    size_t offset,
-				    struct vdef_nalu *nalu)
+				    const struct vdef_nalu *nalu)
 {
 	ULOG_ERRNO_RETURN_ERR_IF(!frame, EINVAL);
 	ULOG_ERRNO_RETURN_ERR_IF(!mem, EINVAL);
@@ -228,7 +269,7 @@ int mbuf_coded_video_frame_add_nalu(struct mbuf_coded_video_frame *frame,
 int mbuf_coded_video_frame_insert_nalu(struct mbuf_coded_video_frame *frame,
 				       struct mbuf_mem *mem,
 				       size_t offset,
-				       struct vdef_nalu *nalu,
+				       const struct vdef_nalu *nalu,
 				       unsigned int index)
 {
 	ULOG_ERRNO_RETURN_ERR_IF(!frame, EINVAL);
@@ -257,8 +298,8 @@ int mbuf_coded_video_frame_finalize(struct mbuf_coded_video_frame *frame)
 
 
 int mbuf_coded_video_frame_uses_mem_from_pool(
-	struct mbuf_coded_video_frame *frame,
-	struct mbuf_pool *pool,
+	const struct mbuf_coded_video_frame *frame,
+	const struct mbuf_pool *pool,
 	bool *any_,
 	bool *all_)
 {
@@ -297,7 +338,8 @@ int mbuf_coded_video_frame_get_metadata(struct mbuf_coded_video_frame *frame,
 }
 
 
-int mbuf_coded_video_frame_get_nalu_count(struct mbuf_coded_video_frame *frame)
+int mbuf_coded_video_frame_get_nalu_count(
+	const struct mbuf_coded_video_frame *frame)
 {
 	ULOG_ERRNO_RETURN_ERR_IF(!frame, EINVAL);
 	ULOG_ERRNO_RETURN_ERR_IF(!mbuf_base_frame_is_finalized(&frame->base),
@@ -392,7 +434,7 @@ int mbuf_coded_video_frame_get_rw_nalu(struct mbuf_coded_video_frame *frame,
 
 int mbuf_coded_video_frame_release_rw_nalu(struct mbuf_coded_video_frame *frame,
 					   unsigned int index,
-					   void *data)
+					   const void *data)
 {
 	ULOG_ERRNO_RETURN_ERR_IF(!frame, EINVAL);
 	ULOG_ERRNO_RETURN_ERR_IF(!mbuf_base_frame_is_finalized(&frame->base),
@@ -506,7 +548,7 @@ int mbuf_coded_video_frame_get_rw_packed_buffer(
 
 int mbuf_coded_video_frame_release_rw_packed_buffer(
 	struct mbuf_coded_video_frame *frame,
-	void *data)
+	const void *data)
 {
 	ULOG_ERRNO_RETURN_ERR_IF(!frame, EINVAL);
 	ULOG_ERRNO_RETURN_ERR_IF(!mbuf_base_frame_is_finalized(&frame->base),
@@ -517,8 +559,8 @@ int mbuf_coded_video_frame_release_rw_packed_buffer(
 }
 
 
-ssize_t
-mbuf_coded_video_frame_get_packed_size(struct mbuf_coded_video_frame *frame)
+ssize_t mbuf_coded_video_frame_get_packed_size(
+	const struct mbuf_coded_video_frame *frame)
 {
 	ULOG_ERRNO_RETURN_ERR_IF(!frame, EINVAL);
 	ULOG_ERRNO_RETURN_ERR_IF(!mbuf_base_frame_is_finalized(&frame->base),
@@ -595,8 +637,9 @@ out:
 }
 
 
-int mbuf_coded_video_frame_get_frame_info(struct mbuf_coded_video_frame *frame,
-					  struct vdef_coded_frame *frame_info)
+int mbuf_coded_video_frame_get_frame_info(
+	const struct mbuf_coded_video_frame *frame,
+	struct vdef_coded_frame *frame_info)
 {
 	ULOG_ERRNO_RETURN_ERR_IF(!frame, EINVAL);
 	ULOG_ERRNO_RETURN_ERR_IF(!frame_info, EINVAL);

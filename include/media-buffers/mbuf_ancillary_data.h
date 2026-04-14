@@ -151,7 +151,7 @@ MBUF_API int mbuf_ancillary_data_unref(struct mbuf_ancillary_data *data);
  * @return A NULL-terminated string containing the data name, or NULL on error.
  */
 MBUF_API const char *
-mbuf_ancillary_data_get_name(struct mbuf_ancillary_data *data);
+mbuf_ancillary_data_get_name(const struct mbuf_ancillary_data *data);
 
 
 /**
@@ -164,7 +164,8 @@ mbuf_ancillary_data_get_name(struct mbuf_ancillary_data *data);
  *
  * @return true if data contains a string value, false otherwise.
  */
-MBUF_API bool mbuf_ancillary_data_is_string(struct mbuf_ancillary_data *data);
+MBUF_API bool
+mbuf_ancillary_data_is_string(const struct mbuf_ancillary_data *data);
 
 
 /**
@@ -180,7 +181,7 @@ MBUF_API bool mbuf_ancillary_data_is_string(struct mbuf_ancillary_data *data);
  * @return A NULL-terminated string containing the data value, or NULL on error.
  */
 MBUF_API const char *
-mbuf_ancillary_data_get_string(struct mbuf_ancillary_data *data);
+mbuf_ancillary_data_get_string(const struct mbuf_ancillary_data *data);
 
 
 /**
@@ -199,7 +200,8 @@ mbuf_ancillary_data_get_string(struct mbuf_ancillary_data *data);
  * @return A valid pointer to the data buffer on success, NULL on error.
  */
 MBUF_API const void *
-mbuf_ancillary_data_get_buffer(struct mbuf_ancillary_data *data, size_t *len);
+mbuf_ancillary_data_get_buffer(const struct mbuf_ancillary_data *data,
+			       size_t *len);
 
 
 /**

@@ -78,7 +78,8 @@ int mbuf_base_frame_init(struct mbuf_base_frame *frame,
 
 int mbuf_base_frame_deinit(struct mbuf_base_frame *frame)
 {
-	struct mbuf_ancillary_data_holder *holder, *tmp;
+	struct mbuf_ancillary_data_holder *holder;
+	struct mbuf_ancillary_data_holder *tmp;
 
 	if (frame->meta_lock_created) {
 		mbuf_base_frame_set_metadata(frame, NULL);
@@ -191,7 +192,7 @@ void mbuf_base_frame_finalize(struct mbuf_base_frame *frame)
 }
 
 
-bool mbuf_base_frame_is_finalized(struct mbuf_base_frame *frame)
+bool mbuf_base_frame_is_finalized(const struct mbuf_base_frame *frame)
 {
 	return atomic_load(&frame->finalized);
 }
@@ -372,7 +373,8 @@ int mbuf_base_frame_remove_ancillary_data(struct mbuf_base_frame *frame,
 					  const char *name)
 {
 	int ret = 0;
-	struct mbuf_ancillary_data_holder *holder, *tmp;
+	struct mbuf_ancillary_data_holder *holder;
+	struct mbuf_ancillary_data_holder *tmp;
 
 	pthread_mutex_lock(&frame->ancillary_lock);
 
@@ -420,7 +422,8 @@ int mbuf_base_frame_foreach_ancillary_data(struct mbuf_base_frame *frame,
 static int
 mbuf_base_frame_queue_flush_internal(struct mbuf_base_frame_queue *queue)
 {
-	struct mbuf_frame_holder *holder, *tmp;
+	struct mbuf_frame_holder *holder;
+	struct mbuf_frame_holder *tmp;
 
 	list_walk_entry_forward_safe(&queue->frames, holder, tmp, node)
 	{
@@ -492,7 +495,8 @@ int mbuf_base_frame_queue_push(struct mbuf_base_frame_queue *queue,
 			       struct mbuf_base_frame *base)
 {
 	int ret;
-	struct mbuf_frame_holder *holder, *tmp;
+	struct mbuf_frame_holder *holder;
+	struct mbuf_frame_holder *tmp;
 
 	holder = calloc(1, sizeof(*holder));
 	if (!holder)

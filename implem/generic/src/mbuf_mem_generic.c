@@ -35,6 +35,7 @@
 #include <ulog.h>
 ULOG_DECLARE_TAG(ULOG_TAG);
 
+#define UNUSED(x) (void)(x)
 
 /* Generic implementation based on malloc/free */
 
@@ -45,6 +46,8 @@ const uint64_t mbuf_mem_generic_cookie = UINT64_C(0x67656e6572696320);
 
 static int gen_alloc(struct mbuf_mem *mem, void *specific)
 {
+	UNUSED(specific);
+
 	mem->data = malloc(mem->size);
 	if (!mem->data)
 		return -ENOMEM;
@@ -55,6 +58,8 @@ static int gen_alloc(struct mbuf_mem *mem, void *specific)
 
 static void gen_free(struct mbuf_mem *mem, void *specific)
 {
+	UNUSED(specific);
+
 	ULOG_ERRNO_RETURN_IF(mem->cookie != mbuf_mem_generic_cookie, EINVAL);
 
 	free(mem->data);
@@ -87,6 +92,8 @@ struct wrap_specific {
 
 static void wrap_free(struct mbuf_mem *mem, void *specific)
 {
+	UNUSED(specific);
+
 	ULOG_ERRNO_RETURN_IF(mem->cookie != mbuf_mem_generic_wrap_cookie,
 			     EINVAL);
 
@@ -162,5 +169,8 @@ int mbuf_mem_generic_wrap(void *data,
 
 void mbuf_mem_generic_releaser_free(void *data, size_t len, void *userdata)
 {
+	UNUSED(len);
+	UNUSED(userdata);
+
 	free(data);
 }

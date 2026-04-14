@@ -48,7 +48,7 @@ static void init_frame_info(struct adef_frame *info,
 }
 
 
-static size_t get_frame_size(struct adef_frame *info)
+static size_t get_frame_size(const struct adef_frame *info)
 {
 	switch (info->format.encoding) {
 	case ADEF_ENCODING_PCM:
@@ -95,7 +95,6 @@ static void set_buffer(struct mbuf_audio_frame *frame,
 {
 	struct adef_frame frame_info;
 	size_t buffer_size;
-	struct mbuf_mem *buf_mem;
 	bool internal_mem = false;
 
 	int ret = mbuf_audio_frame_get_frame_info(frame, &frame_info);
@@ -111,7 +110,6 @@ static void set_buffer(struct mbuf_audio_frame *frame,
 			return;
 		internal_mem = true;
 	}
-	buf_mem = base_mem;
 
 	ret = mbuf_audio_frame_set_buffer(frame, base_mem, 0, buffer_size);
 	CU_ASSERT_EQUAL(ret, 0);
@@ -143,9 +141,43 @@ static void test_mbuf_audio_frame_single(void)
 	ret = mbuf_mem_unref(mem);
 	CU_ASSERT_EQUAL(ret, 0);
 
+	/* Getting read or write locks before finalizing fails */
+	ret = mbuf_audio_frame_rdlock(frame);
+	CU_ASSERT_EQUAL(ret, -EBUSY);
+	ret = mbuf_audio_frame_rdunlock(frame);
+	CU_ASSERT_EQUAL(ret, -EBUSY);
+	ret = mbuf_audio_frame_wrlock(frame);
+	CU_ASSERT_EQUAL(ret, -EBUSY);
+	ret = mbuf_audio_frame_wrunlock(frame);
+	CU_ASSERT_EQUAL(ret, -EBUSY);
+
 	/* Finalize the frame */
 	ret = mbuf_audio_frame_finalize(frame);
 	CU_ASSERT_EQUAL(ret, 0);
+
+	/* Getting read or write locks */
+	ret = mbuf_audio_frame_rdlock(frame);
+	CU_ASSERT_EQUAL(ret, 0);
+	ret = mbuf_audio_frame_wrlock(frame);
+	CU_ASSERT_EQUAL(ret, -EBUSY);
+	ret = mbuf_audio_frame_rdlock(frame);
+	CU_ASSERT_EQUAL(ret, 0);
+	ret = mbuf_audio_frame_rdunlock(frame);
+	CU_ASSERT_EQUAL(ret, 0);
+	ret = mbuf_audio_frame_rdunlock(frame);
+	CU_ASSERT_EQUAL(ret, 0);
+	ret = mbuf_audio_frame_rdunlock(frame);
+	CU_ASSERT_EQUAL(ret, -EALREADY);
+	ret = mbuf_audio_frame_wrlock(frame);
+	CU_ASSERT_EQUAL(ret, 0);
+	ret = mbuf_audio_frame_wrlock(frame);
+	CU_ASSERT_EQUAL(ret, -EALREADY);
+	ret = mbuf_audio_frame_rdlock(frame);
+	CU_ASSERT_EQUAL(ret, -EBUSY);
+	ret = mbuf_audio_frame_wrunlock(frame);
+	CU_ASSERT_EQUAL(ret, 0);
+	ret = mbuf_audio_frame_wrunlock(frame);
+	CU_ASSERT_EQUAL(ret, -EALREADY);
 
 	/* Cleanup */
 	ret = mbuf_audio_frame_unref(frame);
@@ -194,10 +226,14 @@ static void test_mbuf_audio_frame_pool_origin(void)
 {
 	int ret;
 	struct mbuf_pool *pool;
-	struct mbuf_mem *mem_pool, *mem_non_pool;
-	struct mbuf_audio_frame *frame1, *frame2, *frame3;
+	struct mbuf_mem *mem_pool;
+	struct mbuf_mem *mem_non_pool;
+	struct mbuf_audio_frame *frame1;
+	struct mbuf_audio_frame *frame2;
+	struct mbuf_audio_frame *frame3;
 	struct adef_frame frame_info;
-	bool any, all;
+	bool any;
+	bool all;
 
 	init_frame_info(&frame_info, ADEF_ENCODING_AAC_LC);
 	size_t frame_size = get_frame_size(&frame_info);
@@ -264,8 +300,10 @@ static void test_mbuf_audio_frame_pool_origin(void)
 static void test_mbuf_audio_frame_bad_args(void)
 {
 	int ret;
-	struct mbuf_mem *mem, *mem_cp;
-	struct mbuf_audio_frame *frame, *frame_cp;
+	struct mbuf_mem *mem;
+	struct mbuf_mem *mem_cp;
+	struct mbuf_audio_frame *frame;
+	struct mbuf_audio_frame *frame_cp;
 	struct mbuf_audio_frame_queue *queue;
 	struct adef_frame frame_info;
 	struct pomp_evt *evt;
@@ -276,7 +314,8 @@ static void test_mbuf_audio_frame_bad_args(void)
 	const void *tmp;
 	size_t tmp_size;
 	struct vmeta_frame *meta;
-	bool any, all;
+	bool any;
+	bool all;
 	struct mbuf_mem_info mem_info;
 
 	init_frame_info(&frame_info, ADEF_ENCODING_AAC_LC);
@@ -320,6 +359,14 @@ static void test_mbuf_audio_frame_bad_args(void)
 	ret = mbuf_audio_frame_ref(NULL);
 	CU_ASSERT_EQUAL(ret, -EINVAL);
 	ret = mbuf_audio_frame_unref(NULL);
+	CU_ASSERT_EQUAL(ret, -EINVAL);
+	ret = mbuf_audio_frame_rdlock(NULL);
+	CU_ASSERT_EQUAL(ret, -EINVAL);
+	ret = mbuf_audio_frame_rdunlock(NULL);
+	CU_ASSERT_EQUAL(ret, -EINVAL);
+	ret = mbuf_audio_frame_wrlock(NULL);
+	CU_ASSERT_EQUAL(ret, -EINVAL);
+	ret = mbuf_audio_frame_wrunlock(NULL);
 	CU_ASSERT_EQUAL(ret, -EINVAL);
 	ret = mbuf_audio_frame_set_frame_info(NULL, &frame_info);
 	CU_ASSERT_EQUAL(ret, -EINVAL);
@@ -521,7 +568,10 @@ static void test_mbuf_audio_frame_queue(void)
 {
 	int ret;
 	struct adef_frame frame_info;
-	struct mbuf_audio_frame *frame1, *frame2, *frame3, *out_frame;
+	struct mbuf_audio_frame *frame1;
+	struct mbuf_audio_frame *frame2;
+	struct mbuf_audio_frame *frame3;
+	struct mbuf_audio_frame *out_frame;
 	struct mbuf_audio_frame_queue *queue;
 
 	init_frame_info(&frame_info, ADEF_ENCODING_AAC_LC);
@@ -658,7 +708,10 @@ struct test_mbuf_audio_frame_queue_flush_userdata {
 static void
 test_mbuf_audio_frame_queue_flush_free(void *data, size_t len, void *userdata)
 {
+	UNUSED(len);
+
 	struct test_mbuf_audio_frame_queue_flush_userdata *ud = userdata;
+
 	free(data);
 	ud->freed = true;
 }
@@ -728,6 +781,8 @@ struct audio_queue_evt_userdata {
  * and decrement userdata->expected_frames for each frame. */
 static void audio_queue_evt(struct pomp_evt *evt, void *userdata)
 {
+	UNUSED(evt);
+
 	int ret = 0;
 	struct audio_queue_evt_userdata *data = userdata;
 
@@ -749,7 +804,8 @@ static void test_mbuf_audio_frame_queue_evt(void)
 {
 	int ret;
 	struct adef_frame frame_info;
-	struct mbuf_audio_frame *frame1, *frame2;
+	struct mbuf_audio_frame *frame1;
+	struct mbuf_audio_frame *frame2;
 	struct mbuf_audio_frame_queue *queue;
 	struct pomp_evt *evt;
 	struct pomp_loop *loop;
@@ -824,6 +880,9 @@ static void test_mbuf_audio_frame_queue_evt(void)
 /* queue filter function which refuses all frames */
 static bool queue_filter_none(struct mbuf_audio_frame *frame, void *userdata)
 {
+	UNUSED(frame);
+	UNUSED(userdata);
+
 	return false;
 }
 
@@ -832,13 +891,15 @@ static bool queue_filter_none(struct mbuf_audio_frame *frame, void *userdata)
  * function */
 static bool queue_filter_all(struct mbuf_audio_frame *frame, void *userdata)
 {
+	UNUSED(frame);
+	UNUSED(userdata);
+
 	return true;
 }
 
 
 /* queue filter function which only accepts AAC frames */
 static bool _queue_filter_is_encoding(struct mbuf_audio_frame *frame,
-				      void *userdata,
 				      enum adef_encoding encoding)
 {
 	int ret;
@@ -857,7 +918,9 @@ static bool _queue_filter_is_encoding(struct mbuf_audio_frame *frame,
 /* queue filter function which only accepts PCM frames */
 static bool queue_filter_is_pcm(struct mbuf_audio_frame *frame, void *userdata)
 {
-	return _queue_filter_is_encoding(frame, userdata, ADEF_ENCODING_PCM);
+	UNUSED(userdata);
+
+	return _queue_filter_is_encoding(frame, ADEF_ENCODING_PCM);
 }
 
 
@@ -865,18 +928,24 @@ static bool queue_filter_is_pcm(struct mbuf_audio_frame *frame, void *userdata)
 static bool queue_filter_is_aac_lc(struct mbuf_audio_frame *frame,
 				   void *userdata)
 {
-	return _queue_filter_is_encoding(frame, userdata, ADEF_ENCODING_AAC_LC);
+	UNUSED(userdata);
+
+	return _queue_filter_is_encoding(frame, ADEF_ENCODING_AAC_LC);
 }
 
 
 static void test_mbuf_audio_frame_queue_filter(void)
 {
 	int ret;
-	struct adef_frame frame_info_aac, frame_info_pcm;
+	struct adef_frame frame_info_aac;
+	struct adef_frame frame_info_pcm;
 	struct mbuf_mem *mem;
-	struct mbuf_audio_frame *frame_aac, *frame_pcm;
-	struct mbuf_audio_frame_queue *queue_none, *queue_all, *queue_pcm,
-		*queue_aac;
+	struct mbuf_audio_frame *frame_aac;
+	struct mbuf_audio_frame *frame_pcm;
+	struct mbuf_audio_frame_queue *queue_none;
+	struct mbuf_audio_frame_queue *queue_all;
+	struct mbuf_audio_frame_queue *queue_pcm;
+	struct mbuf_audio_frame_queue *queue_aac;
 
 	init_frame_info(&frame_info_aac, ADEF_ENCODING_AAC_LC);
 	init_frame_info(&frame_info_pcm, ADEF_ENCODING_PCM);
@@ -980,7 +1049,9 @@ static void test_mbuf_audio_frame_queue_drop(void)
 {
 	int ret;
 	struct adef_frame frame_info;
-	struct mbuf_audio_frame *frame1, *frame2, *out_frame;
+	struct mbuf_audio_frame *frame1;
+	struct mbuf_audio_frame *frame2;
+	struct mbuf_audio_frame *out_frame;
 	struct mbuf_audio_frame_queue *queue;
 
 	init_frame_info(&frame_info, ADEF_ENCODING_AAC_LC);
@@ -1088,8 +1159,11 @@ static void
 mbuf_audio_frame_ancillary_data_cleaner_cb(struct mbuf_ancillary_data *data,
 					   void *userdata)
 {
+	UNUSED(data);
+
 	struct mbuf_ancillary_data_dyn_test *buf_dyn_value =
 		(struct mbuf_ancillary_data_dyn_test *)userdata;
+
 	CU_ASSERT_PTR_NOT_NULL_FATAL(buf_dyn_value->dyn_str);
 
 	free(buf_dyn_value->dyn_str);
@@ -1102,7 +1176,8 @@ static void test_mbuf_audio_frame_ancillary_data(void)
 	int ret;
 	struct adef_frame frame_info;
 	struct mbuf_mem *mem;
-	struct mbuf_audio_frame *frame, *copy;
+	struct mbuf_audio_frame *frame;
+	struct mbuf_audio_frame *copy;
 
 	struct mbuf_ancillary_data_cbs ancillary_cbs = {};
 	struct mbuf_ancillary_data_test adt = {

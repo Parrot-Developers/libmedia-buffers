@@ -156,7 +156,10 @@ static void check_nalu(struct mbuf_coded_video_frame *frame,
 
 static void test_mbuf_coded_video_frame_scattered(void)
 {
-	struct mbuf_mem *mem1, *mem2, *mem3, *mempack;
+	struct mbuf_mem *mem1;
+	struct mbuf_mem *mem2;
+	struct mbuf_mem *mem3;
+	struct mbuf_mem *mempack;
 	struct vdef_coded_frame frame_info = {
 		.format = vdef_h264_byte_stream,
 		.info.resolution.width = MBUF_TEST_WIDTH,
@@ -164,7 +167,8 @@ static void test_mbuf_coded_video_frame_scattered(void)
 	};
 	size_t required_len;
 	const void *data;
-	struct mbuf_coded_video_frame *frame, *packed;
+	struct mbuf_coded_video_frame *frame;
+	struct mbuf_coded_video_frame *packed;
 
 	/* Create the pool, frame, and memories used by the test */
 	struct mbuf_pool *pool = create_pool();
@@ -355,6 +359,16 @@ static void test_mbuf_coded_video_frame_single(void)
 	ret = mbuf_mem_unref(mem);
 	CU_ASSERT_EQUAL(ret, 0);
 
+	/* Getting read or write locks before finalizing fails */
+	ret = mbuf_coded_video_frame_rdlock(frame);
+	CU_ASSERT_EQUAL(ret, -EBUSY);
+	ret = mbuf_coded_video_frame_rdunlock(frame);
+	CU_ASSERT_EQUAL(ret, -EBUSY);
+	ret = mbuf_coded_video_frame_wrlock(frame);
+	CU_ASSERT_EQUAL(ret, -EBUSY);
+	ret = mbuf_coded_video_frame_wrunlock(frame);
+	CU_ASSERT_EQUAL(ret, -EBUSY);
+
 	/* Finalize the frame */
 	ret = mbuf_coded_video_frame_finalize(frame);
 	CU_ASSERT_EQUAL(ret, 0);
@@ -373,6 +387,30 @@ static void test_mbuf_coded_video_frame_single(void)
 	CU_ASSERT_EQUAL(ret, 0);
 	ret = mbuf_coded_video_frame_release_packed_buffer(frame, data);
 	CU_ASSERT_EQUAL(ret, 0);
+
+	/* Getting read or write locks */
+	ret = mbuf_coded_video_frame_rdlock(frame);
+	CU_ASSERT_EQUAL(ret, 0);
+	ret = mbuf_coded_video_frame_wrlock(frame);
+	CU_ASSERT_EQUAL(ret, -EBUSY);
+	ret = mbuf_coded_video_frame_rdlock(frame);
+	CU_ASSERT_EQUAL(ret, 0);
+	ret = mbuf_coded_video_frame_rdunlock(frame);
+	CU_ASSERT_EQUAL(ret, 0);
+	ret = mbuf_coded_video_frame_rdunlock(frame);
+	CU_ASSERT_EQUAL(ret, 0);
+	ret = mbuf_coded_video_frame_rdunlock(frame);
+	CU_ASSERT_EQUAL(ret, -EALREADY);
+	ret = mbuf_coded_video_frame_wrlock(frame);
+	CU_ASSERT_EQUAL(ret, 0);
+	ret = mbuf_coded_video_frame_wrlock(frame);
+	CU_ASSERT_EQUAL(ret, -EALREADY);
+	ret = mbuf_coded_video_frame_rdlock(frame);
+	CU_ASSERT_EQUAL(ret, -EBUSY);
+	ret = mbuf_coded_video_frame_wrunlock(frame);
+	CU_ASSERT_EQUAL(ret, 0);
+	ret = mbuf_coded_video_frame_wrunlock(frame);
+	CU_ASSERT_EQUAL(ret, -EALREADY);
 
 	/* Cleanup */
 	ret = mbuf_coded_video_frame_unref(frame);
@@ -424,13 +462,16 @@ static void test_mbuf_coded_video_frame_pool_origin(void)
 	int ret;
 	struct mbuf_pool *pool;
 	struct mbuf_mem *mem;
-	struct mbuf_coded_video_frame *frame1, *frame2, *frame3;
+	struct mbuf_coded_video_frame *frame1;
+	struct mbuf_coded_video_frame *frame2;
+	struct mbuf_coded_video_frame *frame3;
 	struct vdef_coded_frame frame_info = {
 		.format = vdef_h264_byte_stream,
 		.info.resolution.width = MBUF_TEST_WIDTH,
 		.info.resolution.height = MBUF_TEST_HEIGHT,
 	};
-	bool any, all;
+	bool any;
+	bool all;
 
 	/* Create the pools/mem/frames */
 	pool = create_pool();
@@ -507,8 +548,10 @@ static void test_mbuf_coded_video_frame_pool_origin(void)
 static void test_mbuf_coded_video_frame_bad_args(void)
 {
 	int ret;
-	struct mbuf_mem *mem, *mem_cp;
-	struct mbuf_coded_video_frame *frame, *frame_cp;
+	struct mbuf_mem *mem;
+	struct mbuf_mem *mem_cp;
+	struct mbuf_coded_video_frame *frame;
+	struct mbuf_coded_video_frame *frame_cp;
 	struct mbuf_coded_video_frame_queue *queue;
 	struct vdef_coded_frame frame_info = {
 		.format = vdef_h264_byte_stream,
@@ -517,7 +560,8 @@ static void test_mbuf_coded_video_frame_bad_args(void)
 	};
 	struct pomp_evt *evt;
 	size_t len;
-	const void *data, *tmp;
+	const void *data;
+	const void *tmp;
 	void *rwdata;
 	struct vdef_nalu nalu = {
 		.size = MBUF_TEST_SIZE,
@@ -525,8 +569,10 @@ static void test_mbuf_coded_video_frame_bad_args(void)
 		.h264.type = H264_NALU_TYPE_SLICE_IDR,
 		.h264.slice_type = H264_SLICE_TYPE_I,
 	};
-	struct vmeta_frame *meta, *out_meta;
-	bool any, all;
+	struct vmeta_frame *meta;
+	struct vmeta_frame *out_meta;
+	bool any;
+	bool all;
 	struct mbuf_mem_info mem_info;
 
 	/* Create a pool for the test */
@@ -572,6 +618,14 @@ static void test_mbuf_coded_video_frame_bad_args(void)
 	ret = mbuf_coded_video_frame_ref(NULL);
 	CU_ASSERT_EQUAL(ret, -EINVAL);
 	ret = mbuf_coded_video_frame_unref(NULL);
+	CU_ASSERT_EQUAL(ret, -EINVAL);
+	ret = mbuf_coded_video_frame_rdlock(NULL);
+	CU_ASSERT_EQUAL(ret, -EINVAL);
+	ret = mbuf_coded_video_frame_rdunlock(NULL);
+	CU_ASSERT_EQUAL(ret, -EINVAL);
+	ret = mbuf_coded_video_frame_wrlock(NULL);
+	CU_ASSERT_EQUAL(ret, -EINVAL);
+	ret = mbuf_coded_video_frame_wrunlock(NULL);
 	CU_ASSERT_EQUAL(ret, -EINVAL);
 	ret = mbuf_coded_video_frame_set_frame_info(NULL, &frame_info);
 	CU_ASSERT_EQUAL(ret, -EINVAL);
@@ -849,7 +903,10 @@ static void test_mbuf_coded_video_frame_queue(void)
 		.info.resolution.width = MBUF_TEST_WIDTH,
 		.info.resolution.height = MBUF_TEST_HEIGHT,
 	};
-	struct mbuf_coded_video_frame *frame1, *frame2, *frame3, *out_frame;
+	struct mbuf_coded_video_frame *frame1;
+	struct mbuf_coded_video_frame *frame2;
+	struct mbuf_coded_video_frame *frame3;
+	struct mbuf_coded_video_frame *out_frame;
 	struct mbuf_coded_video_frame_queue *queue;
 
 	/* Create the frames and the queue used by the test */
@@ -985,6 +1042,8 @@ static void test_mbuf_coded_video_frame_queue_flush_free(void *data,
 							 size_t len,
 							 void *userdata)
 {
+	UNUSED(len);
+
 	struct test_mbuf_coded_video_frame_queue_flush_userdata *ud = userdata;
 	free(data);
 	ud->freed = true;
@@ -1064,6 +1123,8 @@ struct coded_queue_evt_userdata {
  * and decrement userdata->expected_frames for each frame. */
 static void coded_queue_evt(struct pomp_evt *evt, void *userdata)
 {
+	UNUSED(evt);
+
 	int ret = 0;
 	struct coded_queue_evt_userdata *data = userdata;
 

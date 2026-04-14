@@ -70,10 +70,13 @@ static void mbuf_audio_frame_cleaner(void *rframe)
 
 	/* The frame needs to be deleted */
 	int rc = mbuf_rwlock_get_value(&frame->base.rwlock);
-	if (rc == RWLOCK_WRLOCKED)
-		ULOGW("1 rw/buffer not released during frame deletion");
-	else if (rc > 0)
-		ULOGW("%d ro/buffer not released during frame deletion", rc);
+	if (rc == RWLOCK_WRLOCKED) {
+		ULOGW("write lock not released before frame deletion");
+	} else if (rc > 0) {
+		ULOGW("%d read lock%s not released before frame deletion",
+		      rc,
+		      (rc == 1) ? "" : "s");
+	}
 	if (frame->buffer.mem != NULL) {
 		int ret = mbuf_mem_unref(frame->buffer.mem);
 		if (ret != 0)
@@ -85,7 +88,7 @@ static void mbuf_audio_frame_cleaner(void *rframe)
 }
 
 
-int mbuf_audio_frame_new(struct adef_frame *frame_info,
+int mbuf_audio_frame_new(const struct adef_frame *frame_info,
 			 struct mbuf_audio_frame **ret_obj)
 {
 	ULOG_ERRNO_RETURN_ERR_IF(!ret_obj, EINVAL);
@@ -108,7 +111,7 @@ int mbuf_audio_frame_new(struct adef_frame *frame_info,
 
 
 int mbuf_audio_frame_set_callbacks(struct mbuf_audio_frame *frame,
-				   struct mbuf_audio_frame_cbs *cbs)
+				   const struct mbuf_audio_frame_cbs *cbs)
 {
 	ULOG_ERRNO_RETURN_ERR_IF(!frame, EINVAL);
 	ULOG_ERRNO_RETURN_ERR_IF(!cbs, EINVAL);
@@ -136,11 +139,47 @@ int mbuf_audio_frame_unref(struct mbuf_audio_frame *frame)
 }
 
 
+int mbuf_audio_frame_rdlock(struct mbuf_audio_frame *frame)
+{
+	ULOG_ERRNO_RETURN_ERR_IF(!frame, EINVAL);
+	ULOG_ERRNO_RETURN_ERR_IF(!mbuf_base_frame_is_finalized(&frame->base),
+				 EBUSY);
+	return mbuf_base_frame_rdlock(&frame->base);
+}
+
+
+int mbuf_audio_frame_rdunlock(struct mbuf_audio_frame *frame)
+{
+	ULOG_ERRNO_RETURN_ERR_IF(!frame, EINVAL);
+	ULOG_ERRNO_RETURN_ERR_IF(!mbuf_base_frame_is_finalized(&frame->base),
+				 EBUSY);
+	return mbuf_base_frame_rdunlock(&frame->base);
+}
+
+
+int mbuf_audio_frame_wrlock(struct mbuf_audio_frame *frame)
+{
+	ULOG_ERRNO_RETURN_ERR_IF(!frame, EINVAL);
+	ULOG_ERRNO_RETURN_ERR_IF(!mbuf_base_frame_is_finalized(&frame->base),
+				 EBUSY);
+	return mbuf_base_frame_wrlock(&frame->base);
+}
+
+
+int mbuf_audio_frame_wrunlock(struct mbuf_audio_frame *frame)
+{
+	ULOG_ERRNO_RETURN_ERR_IF(!frame, EINVAL);
+	ULOG_ERRNO_RETURN_ERR_IF(!mbuf_base_frame_is_finalized(&frame->base),
+				 EBUSY);
+	return mbuf_base_frame_wrunlock(&frame->base);
+}
+
+
 /* Writer API */
 
 
 int mbuf_audio_frame_set_frame_info(struct mbuf_audio_frame *frame,
-				    struct adef_frame *frame_info)
+				    const struct adef_frame *frame_info)
 {
 	ULOG_ERRNO_RETURN_ERR_IF(!frame, EINVAL);
 	ULOG_ERRNO_RETURN_ERR_IF(!frame_info, EINVAL);
@@ -203,8 +242,8 @@ int mbuf_audio_frame_finalize(struct mbuf_audio_frame *frame)
 /* Reader API */
 
 
-int mbuf_audio_frame_uses_mem_from_pool(struct mbuf_audio_frame *frame,
-					struct mbuf_pool *pool,
+int mbuf_audio_frame_uses_mem_from_pool(const struct mbuf_audio_frame *frame,
+					const struct mbuf_pool *pool,
 					bool *any_,
 					bool *all_)
 {
@@ -305,7 +344,7 @@ int mbuf_audio_frame_get_rw_buffer(struct mbuf_audio_frame *frame,
 
 
 int mbuf_audio_frame_release_rw_buffer(struct mbuf_audio_frame *frame,
-				       void *data)
+				       const void *data)
 {
 	ULOG_ERRNO_RETURN_ERR_IF(!frame, EINVAL);
 	ULOG_ERRNO_RETURN_ERR_IF(!mbuf_base_frame_is_finalized(&frame->base),
@@ -315,7 +354,7 @@ int mbuf_audio_frame_release_rw_buffer(struct mbuf_audio_frame *frame,
 }
 
 
-ssize_t mbuf_audio_frame_get_size(struct mbuf_audio_frame *frame)
+ssize_t mbuf_audio_frame_get_size(const struct mbuf_audio_frame *frame)
 {
 	ULOG_ERRNO_RETURN_ERR_IF(!frame, EINVAL);
 	ULOG_ERRNO_RETURN_ERR_IF(!mbuf_base_frame_is_finalized(&frame->base),
@@ -381,7 +420,7 @@ out:
 }
 
 
-int mbuf_audio_frame_get_frame_info(struct mbuf_audio_frame *frame,
+int mbuf_audio_frame_get_frame_info(const struct mbuf_audio_frame *frame,
 				    struct adef_frame *frame_info)
 {
 	ULOG_ERRNO_RETURN_ERR_IF(!frame, EINVAL);

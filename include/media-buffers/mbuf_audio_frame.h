@@ -114,7 +114,7 @@ struct mbuf_audio_frame_queue_args {
  *
  * @return 0 on success, negative errno on error.
  */
-MBUF_API int mbuf_audio_frame_new(struct adef_frame *frame_info,
+MBUF_API int mbuf_audio_frame_new(const struct adef_frame *frame_info,
 				  struct mbuf_audio_frame **ret_obj);
 
 
@@ -131,8 +131,9 @@ MBUF_API int mbuf_audio_frame_new(struct adef_frame *frame_info,
  *
  * @return 0 on success, negative errno on error.
  */
-MBUF_API int mbuf_audio_frame_set_callbacks(struct mbuf_audio_frame *frame,
-					    struct mbuf_audio_frame_cbs *cbs);
+MBUF_API int
+mbuf_audio_frame_set_callbacks(struct mbuf_audio_frame *frame,
+			       const struct mbuf_audio_frame_cbs *cbs);
 
 
 /**
@@ -163,6 +164,60 @@ MBUF_API int mbuf_audio_frame_ref(struct mbuf_audio_frame *frame);
 MBUF_API int mbuf_audio_frame_unref(struct mbuf_audio_frame *frame);
 
 
+/**
+ * Lock the frame as read-only.
+ * Multiple read locks can be taken concurrently. The write lock cannot be
+ * taken while a read lock is held.
+ * If the frame has not been previously finalized, -EBUSY is returned.
+ *
+ * @note When no longer used, the lock must be released with
+ * mbuf_audio_frame_rdunlock().
+ *
+ * @param frame: The frame.
+ *
+ * @return 0 on success, negative errno on error.
+ */
+MBUF_API int mbuf_audio_frame_rdlock(struct mbuf_audio_frame *frame);
+
+
+/**
+ * Unlock the frame as read-only.
+ * If the frame has not been previously finalized, -EBUSY is returned.
+ *
+ * @param frame: The frame.
+ *
+ * @return 0 on success, negative errno on error.
+ */
+MBUF_API int mbuf_audio_frame_rdunlock(struct mbuf_audio_frame *frame);
+
+
+/**
+ * Lock the frame as read-write.
+ * Only one write lock can be taken at a time. Read locks cannot be taken
+ * while the write lock is held.
+ * If the frame has not been previously finalized, -EBUSY is returned.
+ *
+ * @note When no longer used, the lock must be released with
+ * mbuf_audio_frame_wrunlock().
+ *
+ * @param frame: The frame.
+ *
+ * @return 0 on success, negative errno on error.
+ */
+MBUF_API int mbuf_audio_frame_wrlock(struct mbuf_audio_frame *frame);
+
+
+/**
+ * Unlock the frame as read-write.
+ * If the frame has not been previously finalized, -EBUSY is returned.
+ *
+ * @param frame: The frame.
+ *
+ * @return 0 on success, negative errno on error.
+ */
+MBUF_API int mbuf_audio_frame_wrunlock(struct mbuf_audio_frame *frame);
+
+
 /* Writer API */
 
 
@@ -177,8 +232,9 @@ MBUF_API int mbuf_audio_frame_unref(struct mbuf_audio_frame *frame);
  *
  * @return 0 on success, negative errno on error.
  */
-MBUF_API int mbuf_audio_frame_set_frame_info(struct mbuf_audio_frame *frame,
-					     struct adef_frame *frame_info);
+MBUF_API int
+mbuf_audio_frame_set_frame_info(struct mbuf_audio_frame *frame,
+				const struct adef_frame *frame_info);
 
 
 /**
@@ -234,10 +290,11 @@ MBUF_API int mbuf_audio_frame_finalize(struct mbuf_audio_frame *frame);
  *
  * @return 0 on success, negative errno on error.
  */
-MBUF_API int mbuf_audio_frame_uses_mem_from_pool(struct mbuf_audio_frame *frame,
-						 struct mbuf_pool *pool,
-						 bool *any,
-						 bool *all);
+MBUF_API int
+mbuf_audio_frame_uses_mem_from_pool(const struct mbuf_audio_frame *frame,
+				    const struct mbuf_pool *pool,
+				    bool *any,
+				    bool *all);
 
 
 /**
@@ -314,7 +371,7 @@ MBUF_API int mbuf_audio_frame_get_rw_buffer(struct mbuf_audio_frame *frame,
  * @return 0 on success, negative errno on error.
  */
 MBUF_API int mbuf_audio_frame_release_rw_buffer(struct mbuf_audio_frame *frame,
-						void *data);
+						const void *data);
 
 
 /**
@@ -330,7 +387,8 @@ MBUF_API int mbuf_audio_frame_release_rw_buffer(struct mbuf_audio_frame *frame,
  *
  * @return The size on success, negative errno on error.
  */
-MBUF_API ssize_t mbuf_audio_frame_get_size(struct mbuf_audio_frame *frame);
+MBUF_API ssize_t
+mbuf_audio_frame_get_size(const struct mbuf_audio_frame *frame);
 
 
 /**
@@ -363,8 +421,9 @@ MBUF_API int mbuf_audio_frame_copy(struct mbuf_audio_frame *frame,
  *
  * @return 0 on success, negative errno on error.
  */
-MBUF_API int mbuf_audio_frame_get_frame_info(struct mbuf_audio_frame *frame,
-					     struct adef_frame *frame_info);
+MBUF_API int
+mbuf_audio_frame_get_frame_info(const struct mbuf_audio_frame *frame,
+				struct adef_frame *frame_info);
 
 
 /* Ancillary data API */

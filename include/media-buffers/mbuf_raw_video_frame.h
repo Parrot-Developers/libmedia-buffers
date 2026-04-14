@@ -117,7 +117,7 @@ struct mbuf_raw_video_frame_queue_args {
  *
  * @return 0 on success, negative errno on error.
  */
-MBUF_API int mbuf_raw_video_frame_new(struct vdef_raw_frame *frame_info,
+MBUF_API int mbuf_raw_video_frame_new(const struct vdef_raw_frame *frame_info,
 				      struct mbuf_raw_video_frame **ret_obj);
 
 
@@ -136,7 +136,7 @@ MBUF_API int mbuf_raw_video_frame_new(struct vdef_raw_frame *frame_info,
  */
 MBUF_API int
 mbuf_raw_video_frame_set_callbacks(struct mbuf_raw_video_frame *frame,
-				   struct mbuf_raw_video_frame_cbs *cbs);
+				   const struct mbuf_raw_video_frame_cbs *cbs);
 
 
 /**
@@ -167,6 +167,60 @@ MBUF_API int mbuf_raw_video_frame_ref(struct mbuf_raw_video_frame *frame);
 MBUF_API int mbuf_raw_video_frame_unref(struct mbuf_raw_video_frame *frame);
 
 
+/**
+ * Lock the frame as read-only.
+ * Multiple read locks can be taken concurrently. The write lock cannot be
+ * taken while a read lock is held.
+ * If the frame has not been previously finalized, -EBUSY is returned.
+ *
+ * @note When no longer used, the lock must be released with
+ * mbuf_raw_video_frame_rdunlock().
+ *
+ * @param frame: The frame.
+ *
+ * @return 0 on success, negative errno on error.
+ */
+MBUF_API int mbuf_raw_video_frame_rdlock(struct mbuf_raw_video_frame *frame);
+
+
+/**
+ * Unlock the frame as read-only.
+ * If the frame has not been previously finalized, -EBUSY is returned.
+ *
+ * @param frame: The frame.
+ *
+ * @return 0 on success, negative errno on error.
+ */
+MBUF_API int mbuf_raw_video_frame_rdunlock(struct mbuf_raw_video_frame *frame);
+
+
+/**
+ * Lock the frame as read-write.
+ * Only one write lock can be taken at a time. Read locks cannot be taken
+ * while the write lock is held.
+ * If the frame has not been previously finalized, -EBUSY is returned.
+ *
+ * @note When no longer used, the lock must be released with
+ * mbuf_raw_video_frame_wrunlock().
+ *
+ * @param frame: The frame.
+ *
+ * @return 0 on success, negative errno on error.
+ */
+MBUF_API int mbuf_raw_video_frame_wrlock(struct mbuf_raw_video_frame *frame);
+
+
+/**
+ * Unlock the frame as read-write.
+ * If the frame has not been previously finalized, -EBUSY is returned.
+ *
+ * @param frame: The frame.
+ *
+ * @return 0 on success, negative errno on error.
+ */
+MBUF_API int mbuf_raw_video_frame_wrunlock(struct mbuf_raw_video_frame *frame);
+
+
 /* Writer API */
 
 
@@ -183,7 +237,7 @@ MBUF_API int mbuf_raw_video_frame_unref(struct mbuf_raw_video_frame *frame);
  */
 MBUF_API int
 mbuf_raw_video_frame_set_frame_info(struct mbuf_raw_video_frame *frame,
-				    struct vdef_raw_frame *frame_info);
+				    const struct vdef_raw_frame *frame_info);
 
 
 /**
@@ -264,11 +318,11 @@ MBUF_API int mbuf_raw_video_frame_finalize(struct mbuf_raw_video_frame *frame);
  *
  * @return 0 on success, negative errno on error.
  */
-MBUF_API int
-mbuf_raw_video_frame_uses_mem_from_pool(struct mbuf_raw_video_frame *frame,
-					struct mbuf_pool *pool,
-					bool *any,
-					bool *all);
+MBUF_API int mbuf_raw_video_frame_uses_mem_from_pool(
+	const struct mbuf_raw_video_frame *frame,
+	const struct mbuf_pool *pool,
+	bool *any,
+	bool *all);
 
 
 /**
@@ -376,7 +430,7 @@ mbuf_raw_video_frame_get_rw_plane(struct mbuf_raw_video_frame *frame,
 MBUF_API int
 mbuf_raw_video_frame_release_rw_plane(struct mbuf_raw_video_frame *frame,
 				      unsigned int plane,
-				      void *data);
+				      const void *data);
 
 
 /**
@@ -455,7 +509,7 @@ mbuf_raw_video_frame_get_rw_packed_buffer(struct mbuf_raw_video_frame *frame,
  */
 MBUF_API int mbuf_raw_video_frame_release_rw_packed_buffer(
 	struct mbuf_raw_video_frame *frame,
-	void *data);
+	const void *data);
 
 /**
  * Get the packed-size of a raw video frame.
@@ -479,7 +533,7 @@ MBUF_API int mbuf_raw_video_frame_release_rw_packed_buffer(
  * @return The size on success, negative errno on error.
  */
 MBUF_API ssize_t
-mbuf_raw_video_frame_get_packed_size(struct mbuf_raw_video_frame *frame,
+mbuf_raw_video_frame_get_packed_size(const struct mbuf_raw_video_frame *frame,
 				     bool remove_stride);
 
 
@@ -558,7 +612,7 @@ mbuf_raw_video_frame_copy_with_align(struct mbuf_raw_video_frame *frame,
  * @return 0 on success, negative errno on error.
  */
 MBUF_API int
-mbuf_raw_video_frame_get_frame_info(struct mbuf_raw_video_frame *frame,
+mbuf_raw_video_frame_get_frame_info(const struct mbuf_raw_video_frame *frame,
 				    struct vdef_raw_frame *frame_info);
 
 

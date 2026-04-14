@@ -71,13 +71,13 @@ static void mbuf_raw_video_frame_cleaner(void *rframe)
 
 	/* The frame needs to be deleted */
 	int rc = mbuf_rwlock_get_value(&frame->base.rwlock);
-	if (rc == RWLOCK_WRLOCKED)
-		ULOGW("1 rw-plane/packed-buffer not released"
-		      " during frame deletion");
-	else if (rc > 0)
-		ULOGW("%d ro-plane/packed-buffer not released"
-		      " during frame deletion",
-		      rc);
+	if (rc == RWLOCK_WRLOCKED) {
+		ULOGW("write lock not released before frame deletion");
+	} else if (rc > 0) {
+		ULOGW("%d read lock%s not released before frame deletion",
+		      rc,
+		      (rc == 1) ? "" : "s");
+	}
 	for (unsigned int i = 0; i < frame->nplanes; i++) {
 		if (frame->planes[i].mem != NULL) {
 			int ret = mbuf_mem_unref(frame->planes[i].mem);
@@ -91,7 +91,7 @@ static void mbuf_raw_video_frame_cleaner(void *rframe)
 }
 
 
-int mbuf_raw_video_frame_new(struct vdef_raw_frame *frame_info,
+int mbuf_raw_video_frame_new(const struct vdef_raw_frame *frame_info,
 			     struct mbuf_raw_video_frame **ret_obj)
 {
 	ULOG_ERRNO_RETURN_ERR_IF(!ret_obj, EINVAL);
@@ -114,8 +114,9 @@ int mbuf_raw_video_frame_new(struct vdef_raw_frame *frame_info,
 }
 
 
-int mbuf_raw_video_frame_set_callbacks(struct mbuf_raw_video_frame *frame,
-				       struct mbuf_raw_video_frame_cbs *cbs)
+int mbuf_raw_video_frame_set_callbacks(
+	struct mbuf_raw_video_frame *frame,
+	const struct mbuf_raw_video_frame_cbs *cbs)
 {
 	ULOG_ERRNO_RETURN_ERR_IF(!frame, EINVAL);
 	ULOG_ERRNO_RETURN_ERR_IF(!cbs, EINVAL);
@@ -143,11 +144,47 @@ int mbuf_raw_video_frame_unref(struct mbuf_raw_video_frame *frame)
 }
 
 
+int mbuf_raw_video_frame_rdlock(struct mbuf_raw_video_frame *frame)
+{
+	ULOG_ERRNO_RETURN_ERR_IF(!frame, EINVAL);
+	ULOG_ERRNO_RETURN_ERR_IF(!mbuf_base_frame_is_finalized(&frame->base),
+				 EBUSY);
+	return mbuf_base_frame_rdlock(&frame->base);
+}
+
+
+int mbuf_raw_video_frame_rdunlock(struct mbuf_raw_video_frame *frame)
+{
+	ULOG_ERRNO_RETURN_ERR_IF(!frame, EINVAL);
+	ULOG_ERRNO_RETURN_ERR_IF(!mbuf_base_frame_is_finalized(&frame->base),
+				 EBUSY);
+	return mbuf_base_frame_rdunlock(&frame->base);
+}
+
+
+int mbuf_raw_video_frame_wrlock(struct mbuf_raw_video_frame *frame)
+{
+	ULOG_ERRNO_RETURN_ERR_IF(!frame, EINVAL);
+	ULOG_ERRNO_RETURN_ERR_IF(!mbuf_base_frame_is_finalized(&frame->base),
+				 EBUSY);
+	return mbuf_base_frame_wrlock(&frame->base);
+}
+
+
+int mbuf_raw_video_frame_wrunlock(struct mbuf_raw_video_frame *frame)
+{
+	ULOG_ERRNO_RETURN_ERR_IF(!frame, EINVAL);
+	ULOG_ERRNO_RETURN_ERR_IF(!mbuf_base_frame_is_finalized(&frame->base),
+				 EBUSY);
+	return mbuf_base_frame_wrunlock(&frame->base);
+}
+
+
 /* Writer API */
 
 
 int mbuf_raw_video_frame_set_frame_info(struct mbuf_raw_video_frame *frame,
-					struct vdef_raw_frame *frame_info)
+					const struct vdef_raw_frame *frame_info)
 {
 	ULOG_ERRNO_RETURN_ERR_IF(!frame, EINVAL);
 	ULOG_ERRNO_RETURN_ERR_IF(!frame_info, EINVAL);
@@ -232,8 +269,10 @@ int mbuf_raw_video_frame_finalize(struct mbuf_raw_video_frame *frame)
 {
 	ULOG_ERRNO_RETURN_ERR_IF(!frame, EINVAL);
 
-	for (unsigned int i = 0; i < frame->nplanes; i++)
-		ULOG_ERRNO_RETURN_ERR_IF(!frame->planes[i].mem, EPROTO);
+	if (!vdef_raw_format_cmp(&frame->info.format, &vdef_opaque)) {
+		for (unsigned int i = 0; i < frame->nplanes; i++)
+			ULOG_ERRNO_RETURN_ERR_IF(!frame->planes[i].mem, EPROTO);
+	}
 
 	mbuf_base_frame_finalize(&frame->base);
 
@@ -244,10 +283,11 @@ int mbuf_raw_video_frame_finalize(struct mbuf_raw_video_frame *frame)
 /* Reader API */
 
 
-int mbuf_raw_video_frame_uses_mem_from_pool(struct mbuf_raw_video_frame *frame,
-					    struct mbuf_pool *pool,
-					    bool *any_,
-					    bool *all_)
+int mbuf_raw_video_frame_uses_mem_from_pool(
+	const struct mbuf_raw_video_frame *frame,
+	const struct mbuf_pool *pool,
+	bool *any_,
+	bool *all_)
 {
 	bool any = false;
 	bool all = true;
@@ -259,7 +299,7 @@ int mbuf_raw_video_frame_uses_mem_from_pool(struct mbuf_raw_video_frame *frame,
 				 EBUSY);
 
 	for (unsigned int i = 0; i < frame->nplanes; i++) {
-		if (frame->planes[i].mem->pool == pool)
+		if (frame->planes[i].mem && frame->planes[i].mem->pool == pool)
 			any = true;
 		else
 			all = false;
@@ -295,6 +335,7 @@ int mbuf_raw_video_frame_get_plane_mem_info(struct mbuf_raw_video_frame *frame,
 	ULOG_ERRNO_RETURN_ERR_IF(plane >= frame->nplanes, EINVAL);
 	ULOG_ERRNO_RETURN_ERR_IF(!mbuf_base_frame_is_finalized(&frame->base),
 				 EBUSY);
+	ULOG_ERRNO_RETURN_ERR_IF(frame->planes[plane].mem == NULL, ENODATA);
 
 	mem = frame->planes[plane].mem;
 	info->cookie = mem->cookie;
@@ -369,7 +410,7 @@ int mbuf_raw_video_frame_get_rw_plane(struct mbuf_raw_video_frame *frame,
 
 int mbuf_raw_video_frame_release_rw_plane(struct mbuf_raw_video_frame *frame,
 					  unsigned int plane,
-					  void *data)
+					  const void *data)
 {
 	ULOG_ERRNO_RETURN_ERR_IF(!frame, EINVAL);
 	ULOG_ERRNO_RETURN_ERR_IF(plane >= frame->nplanes, EINVAL);
@@ -482,7 +523,7 @@ int mbuf_raw_video_frame_get_rw_packed_buffer(
 
 int mbuf_raw_video_frame_release_rw_packed_buffer(
 	struct mbuf_raw_video_frame *frame,
-	void *data)
+	const void *data)
 {
 	ULOG_ERRNO_RETURN_ERR_IF(!frame, EINVAL);
 	ULOG_ERRNO_RETURN_ERR_IF(!mbuf_base_frame_is_finalized(&frame->base),
@@ -493,8 +534,9 @@ int mbuf_raw_video_frame_release_rw_packed_buffer(
 }
 
 
-ssize_t mbuf_raw_video_frame_get_packed_size(struct mbuf_raw_video_frame *frame,
-					     bool remove_stride)
+ssize_t
+mbuf_raw_video_frame_get_packed_size(const struct mbuf_raw_video_frame *frame,
+				     bool remove_stride)
 {
 	ULOG_ERRNO_RETURN_ERR_IF(!frame, EINVAL);
 	ULOG_ERRNO_RETURN_ERR_IF(!mbuf_base_frame_is_finalized(&frame->base),
@@ -593,7 +635,7 @@ int mbuf_raw_video_frame_copy(struct mbuf_raw_video_frame *frame,
 		if (ret != 0)
 			goto out;
 		for (unsigned int i = 0; i < frame->nplanes; i++) {
-			uint8_t *cpsrc = frame->planes[i].data;
+			const uint8_t *cpsrc = frame->planes[i].data;
 			uint8_t *cpdst = dst->data;
 			cpdst += offset;
 			size_t nlines = plane_size[i] / plane_stride[i];
@@ -685,7 +727,7 @@ int mbuf_raw_video_frame_copy_with_align(
 		goto out;
 
 	for (i = 0, offset = 0; i < frame->nplanes; i++) {
-		uint8_t *cpsrc = frame->planes[i].data;
+		const uint8_t *cpsrc = frame->planes[i].data;
 		uint8_t *cpdst = dst->data;
 		cpdst += offset;
 		size_t src_lines =
@@ -728,8 +770,9 @@ out:
 }
 
 
-int mbuf_raw_video_frame_get_frame_info(struct mbuf_raw_video_frame *frame,
-					struct vdef_raw_frame *frame_info)
+int mbuf_raw_video_frame_get_frame_info(
+	const struct mbuf_raw_video_frame *frame,
+	struct vdef_raw_frame *frame_info)
 {
 	ULOG_ERRNO_RETURN_ERR_IF(!frame, EINVAL);
 	ULOG_ERRNO_RETURN_ERR_IF(!frame_info, EINVAL);

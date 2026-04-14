@@ -90,7 +90,7 @@ int mbuf_base_frame_get_metadata(struct mbuf_base_frame *frame,
 
 void mbuf_base_frame_finalize(struct mbuf_base_frame *frame);
 
-bool mbuf_base_frame_is_finalized(struct mbuf_base_frame *frame);
+bool mbuf_base_frame_is_finalized(const struct mbuf_base_frame *frame);
 
 int mbuf_base_frame_rdlock(struct mbuf_base_frame *frame);
 

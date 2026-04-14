@@ -50,7 +50,17 @@ static void init_frame_info(struct vdef_raw_frame *info, bool large_stride)
 	}
 }
 
-static size_t get_frame_size(struct vdef_raw_frame *info)
+
+static void init_frame_info_opaque(struct vdef_raw_frame *info)
+{
+	memset(info, 0, sizeof(*info));
+	info->format = vdef_opaque;
+	info->info.resolution.width = MBUF_TEST_WIDTH;
+	info->info.resolution.height = MBUF_TEST_HEIGHT;
+}
+
+
+static size_t get_frame_size(const struct vdef_raw_frame *info)
 {
 	size_t plane_size[VDEF_RAW_MAX_PLANE_COUNT] = {0};
 	size_t plane_stride[VDEF_RAW_MAX_PLANE_COUNT] = {0};
@@ -241,13 +251,48 @@ static void check_planes(struct mbuf_raw_video_frame *frame)
 }
 
 
+/* Check planes in an opaque frame */
+static void check_planes_opaque(struct mbuf_raw_video_frame *frame)
+{
+	struct vdef_raw_frame frame_info;
+	const void *plane;
+	size_t len;
+
+	int ret = mbuf_raw_video_frame_get_frame_info(frame, &frame_info);
+	CU_ASSERT_EQUAL(ret, 0);
+	if (ret != 0)
+		return;
+
+	if (!vdef_raw_format_cmp(&frame_info.format, &vdef_opaque)) {
+		CU_FAIL("This test only operates on opaque frames");
+		return;
+	}
+
+	ret = mbuf_raw_video_frame_get_plane(frame, 0, &plane, &len);
+	CU_ASSERT_EQUAL(ret, 0);
+	CU_ASSERT_EQUAL(plane, NULL);
+	CU_ASSERT_EQUAL(len, 0);
+
+	ret = mbuf_raw_video_frame_release_plane(frame, 0, plane);
+	CU_ASSERT_EQUAL(ret, 0);
+}
+
+
 static void test_mbuf_raw_video_frame_scattered(void)
 {
-	struct mbuf_mem *memy, *memu, *memv, *mempack, *memnostride, *memalign;
+	struct mbuf_mem *memy;
+	struct mbuf_mem *memu;
+	struct mbuf_mem *memv;
+	struct mbuf_mem *mempack;
+	struct mbuf_mem *memnostride;
+	struct mbuf_mem *memalign;
 	struct vdef_raw_frame frame_info;
 	size_t required_len;
 	const void *data;
-	struct mbuf_raw_video_frame *frame, *packed, *nostride, *aligned;
+	struct mbuf_raw_video_frame *frame;
+	struct mbuf_raw_video_frame *packed;
+	struct mbuf_raw_video_frame *nostride;
+	struct mbuf_raw_video_frame *aligned;
 
 	init_frame_info(&frame_info, true);
 
@@ -421,6 +466,16 @@ static void test_mbuf_raw_video_frame_single(void)
 	ret = mbuf_mem_unref(memyuv);
 	CU_ASSERT_EQUAL(ret, 0);
 
+	/* Getting read or write locks before finalizing fails */
+	ret = mbuf_raw_video_frame_rdlock(frame);
+	CU_ASSERT_EQUAL(ret, -EBUSY);
+	ret = mbuf_raw_video_frame_rdunlock(frame);
+	CU_ASSERT_EQUAL(ret, -EBUSY);
+	ret = mbuf_raw_video_frame_wrlock(frame);
+	CU_ASSERT_EQUAL(ret, -EBUSY);
+	ret = mbuf_raw_video_frame_wrunlock(frame);
+	CU_ASSERT_EQUAL(ret, -EBUSY);
+
 	/* Finalize the frame */
 	ret = mbuf_raw_video_frame_finalize(frame);
 	CU_ASSERT_EQUAL(ret, 0);
@@ -435,10 +490,58 @@ static void test_mbuf_raw_video_frame_single(void)
 	ret = mbuf_raw_video_frame_release_packed_buffer(frame, data);
 	CU_ASSERT_EQUAL(ret, 0);
 
+	/* Getting read or write locks */
+	ret = mbuf_raw_video_frame_rdlock(frame);
+	CU_ASSERT_EQUAL(ret, 0);
+	ret = mbuf_raw_video_frame_wrlock(frame);
+	CU_ASSERT_EQUAL(ret, -EBUSY);
+	ret = mbuf_raw_video_frame_rdlock(frame);
+	CU_ASSERT_EQUAL(ret, 0);
+	ret = mbuf_raw_video_frame_rdunlock(frame);
+	CU_ASSERT_EQUAL(ret, 0);
+	ret = mbuf_raw_video_frame_rdunlock(frame);
+	CU_ASSERT_EQUAL(ret, 0);
+	ret = mbuf_raw_video_frame_rdunlock(frame);
+	CU_ASSERT_EQUAL(ret, -EALREADY);
+	ret = mbuf_raw_video_frame_wrlock(frame);
+	CU_ASSERT_EQUAL(ret, 0);
+	ret = mbuf_raw_video_frame_wrlock(frame);
+	CU_ASSERT_EQUAL(ret, -EALREADY);
+	ret = mbuf_raw_video_frame_rdlock(frame);
+	CU_ASSERT_EQUAL(ret, -EBUSY);
+	ret = mbuf_raw_video_frame_wrunlock(frame);
+	CU_ASSERT_EQUAL(ret, 0);
+	ret = mbuf_raw_video_frame_wrunlock(frame);
+	CU_ASSERT_EQUAL(ret, -EALREADY);
+
 	/* Cleanup */
 	ret = mbuf_raw_video_frame_unref(frame);
 	CU_ASSERT_EQUAL(ret, 0);
 	ret = mbuf_pool_destroy(pool);
+	CU_ASSERT_EQUAL(ret, 0);
+}
+
+
+static void test_mbuf_raw_video_frame_opaque(void)
+{
+	struct vdef_raw_frame frame_info;
+	struct mbuf_raw_video_frame *frame;
+
+	init_frame_info_opaque(&frame_info);
+
+	/* Create the frame */
+	int ret = mbuf_raw_video_frame_new(&frame_info, &frame);
+	CU_ASSERT_EQUAL(ret, 0);
+
+	/* Finalize the frame */
+	ret = mbuf_raw_video_frame_finalize(frame);
+	CU_ASSERT_EQUAL(ret, 0);
+
+	/* Check frame content via the plane getters */
+	check_planes_opaque(frame);
+
+	/* Cleanup */
+	ret = mbuf_raw_video_frame_unref(frame);
 	CU_ASSERT_EQUAL(ret, 0);
 }
 
@@ -482,10 +585,15 @@ static void test_mbuf_raw_video_frame_pool_origin(void)
 {
 	int ret;
 	struct mbuf_pool *pool;
-	struct mbuf_mem *mem_pool, *mem_non_pool1, *mem_non_pool2;
-	struct mbuf_raw_video_frame *frame1, *frame2, *frame3;
+	struct mbuf_mem *mem_pool;
+	struct mbuf_mem *mem_non_pool1;
+	struct mbuf_mem *mem_non_pool2;
+	struct mbuf_raw_video_frame *frame1;
+	struct mbuf_raw_video_frame *frame2;
+	struct mbuf_raw_video_frame *frame3;
 	struct vdef_raw_frame frame_info;
-	bool any, all;
+	bool any;
+	bool all;
 
 	init_frame_info(&frame_info, false);
 	size_t frame_size = get_frame_size(&frame_info);
@@ -557,8 +665,10 @@ static void test_mbuf_raw_video_frame_pool_origin(void)
 static void test_mbuf_raw_video_frame_bad_args(void)
 {
 	int ret;
-	struct mbuf_mem *mem, *mem_cp;
-	struct mbuf_raw_video_frame *frame, *frame_cp;
+	struct mbuf_mem *mem;
+	struct mbuf_mem *mem_cp;
+	struct mbuf_raw_video_frame *frame;
+	struct mbuf_raw_video_frame *frame_cp;
 	struct mbuf_raw_video_frame_queue *queue;
 	struct vdef_raw_frame frame_info;
 	struct pomp_evt *evt;
@@ -568,8 +678,10 @@ static void test_mbuf_raw_video_frame_bad_args(void)
 	size_t len;
 	const void *tmp;
 	size_t tmp_size;
-	struct vmeta_frame *meta, *out_meta;
-	bool any, all;
+	struct vmeta_frame *meta;
+	struct vmeta_frame *out_meta;
+	bool any;
+	bool all;
 	struct mbuf_mem_info mem_info;
 	unsigned int plane_count;
 
@@ -613,6 +725,14 @@ static void test_mbuf_raw_video_frame_bad_args(void)
 	ret = mbuf_raw_video_frame_ref(NULL);
 	CU_ASSERT_EQUAL(ret, -EINVAL);
 	ret = mbuf_raw_video_frame_unref(NULL);
+	CU_ASSERT_EQUAL(ret, -EINVAL);
+	ret = mbuf_raw_video_frame_rdlock(NULL);
+	CU_ASSERT_EQUAL(ret, -EINVAL);
+	ret = mbuf_raw_video_frame_rdunlock(NULL);
+	CU_ASSERT_EQUAL(ret, -EINVAL);
+	ret = mbuf_raw_video_frame_wrlock(NULL);
+	CU_ASSERT_EQUAL(ret, -EINVAL);
+	ret = mbuf_raw_video_frame_wrunlock(NULL);
 	CU_ASSERT_EQUAL(ret, -EINVAL);
 	ret = mbuf_raw_video_frame_set_frame_info(NULL, &frame_info);
 	CU_ASSERT_EQUAL(ret, -EINVAL);
@@ -876,7 +996,10 @@ static void test_mbuf_raw_video_frame_queue(void)
 {
 	int ret;
 	struct vdef_raw_frame frame_info;
-	struct mbuf_raw_video_frame *frame1, *frame2, *frame3, *out_frame;
+	struct mbuf_raw_video_frame *frame1;
+	struct mbuf_raw_video_frame *frame2;
+	struct mbuf_raw_video_frame *frame3;
+	struct mbuf_raw_video_frame *out_frame;
 	struct mbuf_raw_video_frame_queue *queue;
 
 	init_frame_info(&frame_info, false);
@@ -1014,7 +1137,10 @@ static void test_mbuf_raw_video_frame_queue_flush_free(void *data,
 						       size_t len,
 						       void *userdata)
 {
+	UNUSED(len);
+
 	struct test_mbuf_raw_video_frame_queue_flush_userdata *ud = userdata;
+
 	free(data);
 	ud->freed = true;
 }
@@ -1084,6 +1210,8 @@ struct raw_queue_evt_userdata {
  * and decrement userdata->expected_frames for each frame. */
 static void raw_queue_evt(struct pomp_evt *evt, void *userdata)
 {
+	UNUSED(evt);
+
 	int ret = 0;
 	struct raw_queue_evt_userdata *data = userdata;
 
@@ -1105,7 +1233,8 @@ static void test_mbuf_raw_video_frame_queue_evt(void)
 {
 	int ret;
 	struct vdef_raw_frame frame_info;
-	struct mbuf_raw_video_frame *frame1, *frame2;
+	struct mbuf_raw_video_frame *frame1;
+	struct mbuf_raw_video_frame *frame2;
 	struct mbuf_raw_video_frame_queue *queue;
 	struct pomp_evt *evt;
 	struct pomp_loop *loop;
@@ -1181,6 +1310,9 @@ static void test_mbuf_raw_video_frame_queue_evt(void)
 static bool queue_filter_none(struct mbuf_raw_video_frame *frame,
 			      void *userdata)
 {
+	UNUSED(frame);
+	UNUSED(userdata);
+
 	return false;
 }
 
@@ -1189,6 +1321,9 @@ static bool queue_filter_none(struct mbuf_raw_video_frame *frame,
  * function */
 static bool queue_filter_all(struct mbuf_raw_video_frame *frame, void *userdata)
 {
+	UNUSED(frame);
+	UNUSED(userdata);
+
 	return true;
 }
 
@@ -1215,10 +1350,14 @@ static void test_mbuf_raw_video_frame_queue_filter(void)
 {
 	int ret;
 	struct vdef_raw_frame frame_info;
-	struct mbuf_mem *memy, *memu, *memv;
-	struct mbuf_raw_video_frame *frame1, *frame2;
-	struct mbuf_raw_video_frame_queue *queue_none, *queue_all,
-		*queue_packed;
+	struct mbuf_mem *memy;
+	struct mbuf_mem *memu;
+	struct mbuf_mem *memv;
+	struct mbuf_raw_video_frame *frame1;
+	struct mbuf_raw_video_frame *frame2;
+	struct mbuf_raw_video_frame_queue *queue_none;
+	struct mbuf_raw_video_frame_queue *queue_all;
+	struct mbuf_raw_video_frame_queue *queue_packed;
 
 	init_frame_info(&frame_info, false);
 
@@ -1315,7 +1454,9 @@ static void test_mbuf_raw_video_frame_queue_drop(void)
 {
 	int ret;
 	struct vdef_raw_frame frame_info;
-	struct mbuf_raw_video_frame *frame1, *frame2, *out_frame;
+	struct mbuf_raw_video_frame *frame1;
+	struct mbuf_raw_video_frame *frame2;
+	struct mbuf_raw_video_frame *out_frame;
 	struct mbuf_raw_video_frame_queue *queue;
 
 	init_frame_info(&frame_info, false);
@@ -1423,6 +1564,8 @@ static void
 mbuf_raw_video_frame_ancillary_data_cleaner_cb(struct mbuf_ancillary_data *data,
 					       void *userdata)
 {
+	UNUSED(data);
+
 	struct mbuf_ancillary_data_dyn_test *buf_dyn_value =
 		(struct mbuf_ancillary_data_dyn_test *)userdata;
 	CU_ASSERT_PTR_NOT_NULL_FATAL(buf_dyn_value->dyn_str);
@@ -1437,7 +1580,8 @@ static void test_mbuf_raw_video_frame_ancillary_data(void)
 	int ret;
 	struct vdef_raw_frame frame_info;
 	struct mbuf_mem *mem;
-	struct mbuf_raw_video_frame *frame, *copy;
+	struct mbuf_raw_video_frame *frame;
+	struct mbuf_raw_video_frame *copy;
 
 	struct mbuf_ancillary_data_cbs ancillary_cbs = {};
 	struct mbuf_ancillary_data_test adt = {
@@ -1593,6 +1737,7 @@ static void test_mbuf_raw_video_frame_ancillary_data(void)
 CU_TestInfo g_mbuf_test_raw_video_frame[] = {
 	{(char *)"scattered", &test_mbuf_raw_video_frame_scattered},
 	{(char *)"single", &test_mbuf_raw_video_frame_single},
+	{(char *)"opaque", &test_mbuf_raw_video_frame_opaque},
 	{(char *)"get_infos", &test_mbuf_raw_video_frame_infos},
 	{(char *)"pool_origin", &test_mbuf_raw_video_frame_pool_origin},
 	{(char *)"bad_args", &test_mbuf_raw_video_frame_bad_args},

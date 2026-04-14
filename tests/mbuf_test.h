@@ -46,11 +46,14 @@
  * for partial get/releases */
 #define MBUF_TEST_POOL_SIZE 10
 
+#define UNUSED(x) (void)(x)
 
 extern CU_TestInfo g_mbuf_test_ancillary[];
 extern CU_TestInfo g_mbuf_test_audio_frame[];
 extern CU_TestInfo g_mbuf_test_coded_video_frame[];
+extern CU_TestInfo g_mbuf_test_implem[];
 extern CU_TestInfo g_mbuf_test_pool[];
+extern CU_TestInfo g_mbuf_test_queue_cpp[];
 extern CU_TestInfo g_mbuf_test_raw_video_frame[];
 extern CU_TestInfo g_mbuf_test_wrap[];
 

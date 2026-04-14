@@ -202,7 +202,7 @@ mbuf_mem_shm_get_implem(const struct mbuf_shm_attr *attrs)
 
 	impl_specific = calloc(1, sizeof(*impl_specific));
 	if (!impl_specific) {
-		ULOG_ERRNO("malloc", ENOMEM);
+		ULOG_ERRNO("calloc", ENOMEM);
 		goto error;
 	}
 	impl_specific->fd = fd;

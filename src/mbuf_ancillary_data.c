@@ -72,7 +72,7 @@ int mbuf_ancillary_data_unref(struct mbuf_ancillary_data *data)
 }
 
 
-const char *mbuf_ancillary_data_get_name(struct mbuf_ancillary_data *data)
+const char *mbuf_ancillary_data_get_name(const struct mbuf_ancillary_data *data)
 {
 	ULOG_ERRNO_RETURN_VAL_IF(!data, EINVAL, NULL);
 
@@ -80,7 +80,7 @@ const char *mbuf_ancillary_data_get_name(struct mbuf_ancillary_data *data)
 }
 
 
-bool mbuf_ancillary_data_is_string(struct mbuf_ancillary_data *data)
+bool mbuf_ancillary_data_is_string(const struct mbuf_ancillary_data *data)
 {
 	ULOG_ERRNO_RETURN_VAL_IF(!data, EINVAL, false);
 
@@ -88,7 +88,8 @@ bool mbuf_ancillary_data_is_string(struct mbuf_ancillary_data *data)
 }
 
 
-const char *mbuf_ancillary_data_get_string(struct mbuf_ancillary_data *data)
+const char *
+mbuf_ancillary_data_get_string(const struct mbuf_ancillary_data *data)
 {
 	ULOG_ERRNO_RETURN_VAL_IF(!data, EINVAL, NULL);
 
@@ -98,8 +99,9 @@ const char *mbuf_ancillary_data_get_string(struct mbuf_ancillary_data *data)
 }
 
 
-const void *mbuf_ancillary_data_get_buffer(struct mbuf_ancillary_data *data,
-					   size_t *len)
+const void *
+mbuf_ancillary_data_get_buffer(const struct mbuf_ancillary_data *data,
+			       size_t *len)
 {
 	ULOG_ERRNO_RETURN_VAL_IF(!data, EINVAL, NULL);
 
@@ -135,7 +137,9 @@ int mbuf_ancillary_data_build_key(const char *name, uintptr_t ptr, char **key)
 int mbuf_ancillary_data_parse_key(const char *key, char **name, uintptr_t *ptr)
 {
 	int ret;
-	char *_key = NULL, *_name = NULL, *_ptr_str = NULL;
+	char *_key = NULL;
+	const char *_name = NULL;
+	const char *_ptr_str = NULL;
 	char *savedptr = NULL;
 
 	ULOG_ERRNO_RETURN_ERR_IF(!key, EINVAL);
@@ -163,7 +167,7 @@ int mbuf_ancillary_data_parse_key(const char *key, char **name, uintptr_t *ptr)
 			ret = -errno;
 			goto out;
 		}
-		*ptr = (uintptr_t)parsed_ulong;
+		*ptr = parsed_ulong;
 	}
 	*name = strdup(_name);
 	if (*name == NULL) {

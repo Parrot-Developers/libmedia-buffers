@@ -104,7 +104,8 @@ static void test_mbuf_pool(void)
 	}
 
 	/* The pool should be full, with no change in its size */
-	size_t cur = 0, max = 0;
+	size_t cur = 0;
+	size_t max = 0;
 	ret = mbuf_pool_get_count(pool, &max, &cur);
 	CU_ASSERT_EQUAL(ret, 0);
 	CU_ASSERT_EQUAL(cur, MBUF_TEST_POOL_SIZE);
@@ -151,7 +152,8 @@ static void test_mbuf_pool_grow(void)
 	}
 
 	/* The pool should be full, with size increase */
-	size_t cur = 0, max = 0;
+	size_t cur = 0;
+	size_t max = 0;
 	ret = mbuf_pool_get_count(pool, &max, &cur);
 	CU_ASSERT_EQUAL(ret, 0);
 	CU_ASSERT_EQUAL(cur, MBUF_TEST_POOL_SIZE + 1);
@@ -211,7 +213,8 @@ static void test_mbuf_pool_grow_max(void)
 	}
 
 	/* The pool should be full, with its maximum size */
-	size_t cur = 0, max = 0;
+	size_t cur = 0;
+	size_t max = 0;
 	ret = mbuf_pool_get_count(pool, &max, &cur);
 	CU_ASSERT_EQUAL(ret, 0);
 	CU_ASSERT_EQUAL(cur, 2 * MBUF_TEST_POOL_SIZE);
@@ -228,7 +231,8 @@ static void test_mbuf_pool_smart_grow(void)
 	struct mbuf_mem *mem;
 	struct mbuf_mem *save[MBUF_TEST_POOL_SIZE];
 	struct mbuf_mem *extra[MBUF_TEST_POOL_SIZE];
-	size_t cur = 0, max = 0;
+	size_t cur = 0;
+	size_t max = 0;
 
 	/* Create a smart-growing pool */
 	int ret = mbuf_pool_new(mbuf_mem_generic_impl,
@@ -314,7 +318,8 @@ static void test_mbuf_pool_lowmem_grow(void)
 	struct mbuf_pool *pool;
 	struct mbuf_mem *mem;
 	struct mbuf_mem *save[MBUF_TEST_POOL_SIZE];
-	size_t cur = 0, max = 0;
+	size_t cur = 0;
+	size_t max = 0;
 
 	/* Create a lowmem-growing pool */
 	int ret = mbuf_pool_new(mbuf_mem_generic_impl,

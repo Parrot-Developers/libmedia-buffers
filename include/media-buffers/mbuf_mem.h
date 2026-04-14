@@ -83,6 +83,78 @@ struct mbuf_mem_info {
 };
 
 
+/* Supported mbuf mem implementations */
+enum mbuf_mem_implem_type {
+	/* Automatically select mbuf mem implem */
+	MBUF_MEM_IMPLEM_TYPE_AUTO = 0,
+
+	/* Generic implem */
+	MBUF_MEM_IMPLEM_TYPE_GENERIC,
+
+	/* CVPixelBuffer implem */
+	MBUF_MEM_IMPLEM_TYPE_CVPIXELBUFFER,
+
+	/* Pixel Buffer Object implem */
+	MBUF_MEM_IMPLEM_TYPE_PBO,
+
+	/* Shared Memory implem */
+	MBUF_MEM_IMPLEM_TYPE_SHM,
+
+	/* Hisilicon implem */
+	MBUF_MEM_IMPLEM_TYPE_HISI,
+
+	/* ION implem */
+	MBUF_MEM_IMPLEM_TYPE_ION,
+
+	/* VACQ implem */
+	MBUF_MEM_IMPLEM_TYPE_VACQ,
+
+	MBUF_MEM_IMPLEM_TYPE_MAX,
+};
+
+
+/**
+ * Get the supported implementations.
+ * The returned implementations array is a static array whose size is the return
+ * value of this function. If this function returns an error (negative errno),
+ * then the value of *implems is undefined.
+ * @param implems: pointer to an array of implems (output)
+ * @return the size of the implems array, or a negative errno on error.
+ */
+MBUF_API int
+mbuf_get_supported_implems(const enum mbuf_mem_implem_type **implems);
+
+
+/**
+ * Get the implementation that will be chosen in case MBUF_MEM_IMPLEM_TYPE_AUTO
+ * is used
+ * @return the mbuf mem implementation, or MBUF_MEM_IMPLEM_TYPE_AUTO in
+ * case of error
+ */
+MBUF_API enum mbuf_mem_implem_type mbuf_get_auto_implem(void);
+
+
+/**
+ * Get an enum mbuf_mem_implem_type value from a string.
+ * Valid strings are only the suffix of the implementation name (eg. 'ION').
+ * The case is ignored.
+ * @param str: implementation name to convert
+ * @return the enum mbuf_mem_implem_type value or MBUF_MEM_IMPLEM_TYPE_AUTO
+ *         if unknown
+ */
+MBUF_API enum mbuf_mem_implem_type
+mbuf_mem_implem_type_from_str(const char *str);
+
+
+/**
+ * Get a string from an enum mbuf_mem_implem_type value.
+ * @param implem: implementation value to convert
+ * @return a string description of the implementation
+ */
+MBUF_API const char *
+mbuf_mem_implem_type_to_str(enum mbuf_mem_implem_type implem);
+
+
 /**
  * Create a new memory pool with the given parameters.
  *
@@ -117,7 +189,7 @@ MBUF_API int mbuf_pool_new(const struct mbuf_mem_implem *implem,
  *
  * @return The pool name, or NULL if the pool is invalid.
  */
-MBUF_API const char *mbuf_pool_get_name(struct mbuf_pool *pool);
+MBUF_API const char *mbuf_pool_get_name(const struct mbuf_pool *pool);
 
 
 /**
