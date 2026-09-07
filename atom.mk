@@ -199,10 +199,12 @@ LOCAL_EXPORT_C_INCLUDES := $(LOCAL_PATH)/include
 # Public API headers - top level headers first
 # This header list is currently used to generate a python binding
 LOCAL_EXPORT_CUSTOM_VARIABLES := LIBMEDIABUFFERS_HEADERS=$\
+	$(LOCAL_PATH)/include/media-buffers/mbuf_frame.hpp; \
 	$(LOCAL_PATH)/include/media-buffers/mbuf_queue.hpp;
-LOCAL_EXPORT_CXXFLAGS := -std=c++11
+LOCAL_EXPORT_CXXFLAGS := -std=c++17
 LOCAL_CFLAGS := -DMBUF_API_EXPORTS -fvisibility=hidden -std=gnu11 -D_GNU_SOURCE
 LOCAL_SRC_FILES := \
+	src/mbuf_frame.cpp \
 	src/mbuf_queue.cpp
 LOCAL_LIBRARIES := \
 	libaudio-defs \
@@ -238,6 +240,7 @@ LOCAL_SRC_FILES := \
 	tests/mbuf_ancillary_test.c \
 	tests/mbuf_audio_frame_test.c \
 	tests/mbuf_coded_video_frame_test.c \
+	tests/mbuf_frame_test.cpp \
 	tests/mbuf_implem_test.c \
 	tests/mbuf_pool_test.c \
 	tests/mbuf_queue_test.cpp \

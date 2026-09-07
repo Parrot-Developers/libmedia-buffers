@@ -27,216 +27,407 @@
 
 #pragma once
 
+#include "media-buffers/mbuf_frame.hpp"
+
 
 namespace mbuf {
 
-#include "media-buffers/mbuf_frame.hpp"
+/*
+ * Traits definition to map C++ types to C functions and types.
+ */
+template <typename T> struct FrameTraits;
 
-#if __cplusplus >= 201402L
-using std::make_unique;
-#else
-template <typename T, typename... Args>
-std::unique_ptr<T> make_unique(Args &&...args)
-{
-	return std::unique_ptr<T>(new T(std::forward<Args>(args)...));
-}
-#endif
+
+#define MBUF_FRAME_TRAITS_DEF(_T, _info, _cbs)                                 \
+	static int create(FrameType **q, const InfoType *info)                 \
+	{                                                                      \
+		return _T##_new(info, q);                                      \
+	}                                                                      \
+	static int ref(FrameType *q)                                           \
+	{                                                                      \
+		return _T##_ref(q);                                            \
+	}                                                                      \
+	static int unref(FrameType *q)                                         \
+	{                                                                      \
+		return _T##_unref(q);                                          \
+	}                                                                      \
+	static int setCbs(FrameType *q, const CbsType *cbs)                    \
+	{                                                                      \
+		return _T##_set_callbacks(q, cbs);                             \
+	}                                                                      \
+	static int rdLock(FrameType *q)                                        \
+	{                                                                      \
+		return _T##_rdlock(q);                                         \
+	}                                                                      \
+	static int rdUnlock(FrameType *q)                                      \
+	{                                                                      \
+		return _T##_rdunlock(q);                                       \
+	}                                                                      \
+	static int wrLock(FrameType *q)                                        \
+	{                                                                      \
+		return _T##_wrlock(q);                                         \
+	}                                                                      \
+	static int wrUnlock(FrameType *q)                                      \
+	{                                                                      \
+		return _T##_wrunlock(q);                                       \
+	}                                                                      \
+	static int finalize(FrameType *q)                                      \
+	{                                                                      \
+		return _T##_finalize(q);                                       \
+	}                                                                      \
+	static int addAncillaryString(                                         \
+		FrameType *q, const char *name, const char *value)             \
+	{                                                                      \
+		return _T##_add_ancillary_string(q, name, value);              \
+	}                                                                      \
+	static int addAncillaryBuffer(FrameType *q,                            \
+				      const char *name,                        \
+				      const void *buffer,                      \
+				      size_t len)                              \
+	{                                                                      \
+		return _T##_add_ancillary_buffer(q, name, buffer, len);        \
+	}                                                                      \
+	static int addAncillaryBufferWithCbs(                                  \
+		FrameType *q,                                                  \
+		const char *name,                                              \
+		const void *buffer,                                            \
+		size_t len,                                                    \
+		const struct mbuf_ancillary_data_cbs *cbs)                     \
+	{                                                                      \
+		return _T##_add_ancillary_buffer_with_cbs(                     \
+			q, name, buffer, len, cbs);                            \
+	}                                                                      \
+	static int addAncillaryData(FrameType *q,                              \
+				    struct mbuf_ancillary_data *data)          \
+	{                                                                      \
+		return _T##_add_ancillary_data(q, data);                       \
+	}                                                                      \
+	static int getAncillaryData(FrameType *q,                              \
+				    const char *name,                          \
+				    struct mbuf_ancillary_data **data)         \
+	{                                                                      \
+		return _T##_get_ancillary_data(q, name, data);                 \
+	}                                                                      \
+	static int removeAncillaryData(FrameType *q, const char *name)         \
+	{                                                                      \
+		return _T##_remove_ancillary_data(q, name);                    \
+	}                                                                      \
+	static int getFrameInfo(FrameType *q, InfoType *info)                  \
+	{                                                                      \
+		return _T##_get_frame_info(q, info);                           \
+	}
+
+
+#define MBUF_VIDEO_FRAME_TRAITS_DEF(_T, _info, _cbs)                           \
+	MBUF_FRAME_TRAITS_DEF(_T, _info, _cbs)                                 \
+	static int setMetadata(FrameType *q, struct vmeta_frame *meta)         \
+	{                                                                      \
+		return _T##_set_metadata(q, meta);                             \
+	}                                                                      \
+	static int getMetadata(FrameType *q, struct vmeta_frame **meta)        \
+	{                                                                      \
+		return _T##_get_metadata(q, meta);                             \
+	}                                                                      \
+	static int usesMemFromPool(FrameType *q,                               \
+				   const struct mbuf_pool *pool,               \
+				   bool *any,                                  \
+				   bool *all)                                  \
+	{                                                                      \
+		return _T##_uses_mem_from_pool(q, pool, any, all);             \
+	}                                                                      \
+	static int getBuffer(FrameType *q, const void **data, size_t *len)     \
+	{                                                                      \
+		return _T##_get_packed_buffer(q, data, len);                   \
+	}                                                                      \
+	static int releaseBuffer(FrameType *q, const void *data)               \
+	{                                                                      \
+		return _T##_release_packed_buffer(q, data);                    \
+	}                                                                      \
+	static int getRWBuffer(FrameType *q, void **data, size_t *len)         \
+	{                                                                      \
+		return _T##_get_rw_packed_buffer(q, data, len);                \
+	}                                                                      \
+	static int releaseRWBuffer(FrameType *q, const void *data)             \
+	{                                                                      \
+		return _T##_release_rw_packed_buffer(q, data);                 \
+	}                                                                      \
+	/* Not implemented (Audio) */                                          \
+	static int setBuffer(                                                  \
+		FrameType *q, struct mbuf_mem *mem, size_t offset, size_t len) \
+	{                                                                      \
+		return -ENOSYS;                                                \
+	}
+
+
+#define MBUF_AUDIO_FRAME_TRAITS_DEF(_T, _info, _cbs)                           \
+	template <> struct FrameTraits<struct _T> {                            \
+		using FrameType = struct _T;                                   \
+		using InfoType = struct _info;                                 \
+		using CbsType = struct _cbs;                                   \
+		static constexpr Frame::Type Type = Frame::Type::AUDIO;        \
+		MBUF_FRAME_TRAITS_DEF(_T, _info, _cbs)                         \
+		static int                                                     \
+		getBuffer(FrameType *q, const void **data, size_t *len)        \
+		{                                                              \
+			return _T##_get_buffer(q, data, len);                  \
+		}                                                              \
+		static int releaseBuffer(FrameType *q, const void *data)       \
+		{                                                              \
+			return _T##_release_buffer(q, data);                   \
+		}                                                              \
+		static int getRWBuffer(FrameType *q, void **data, size_t *len) \
+		{                                                              \
+			return _T##_get_rw_buffer(q, data, len);               \
+		}                                                              \
+		static int releaseRWBuffer(FrameType *q, const void *data)     \
+		{                                                              \
+			return _T##_release_rw_buffer(q, data);                \
+		}                                                              \
+		/* Specific */                                                 \
+		static int setBuffer(FrameType *q,                             \
+				     struct mbuf_mem *mem,                     \
+				     size_t offset,                            \
+				     size_t len)                               \
+		{                                                              \
+			return _T##_set_buffer(q, mem, offset, len);           \
+		}                                                              \
+		/* Not implemented (Video) */                                  \
+		static int setMetadata(FrameType *q, struct vmeta_frame *meta) \
+		{                                                              \
+			return -ENOSYS;                                        \
+		}                                                              \
+		static int getMetadata(FrameType *q,                           \
+				       struct vmeta_frame **meta)              \
+		{                                                              \
+			return -ENOSYS;                                        \
+		}                                                              \
+		static int usesMemFromPool(FrameType *q,                       \
+					   const struct mbuf_pool *pool,       \
+					   bool *any,                          \
+					   bool *all)                          \
+		{                                                              \
+			return -ENOSYS;                                        \
+		}                                                              \
+		/* Not implemented (Coded video) */                            \
+		static int addNalu(FrameType *q,                               \
+				   struct mbuf_mem *mem,                       \
+				   size_t offset,                              \
+				   const struct vdef_nalu *nalu)               \
+		{                                                              \
+			return -ENOSYS;                                        \
+		}                                                              \
+		static int insertNalu(FrameType *q,                            \
+				      struct mbuf_mem *mem,                    \
+				      size_t offset,                           \
+				      const struct vdef_nalu *nalu,            \
+				      unsigned int index)                      \
+		{                                                              \
+			return -ENOSYS;                                        \
+		}                                                              \
+		/* Not implemented (Raw video) */                              \
+		static int setPlane(FrameType *q,                              \
+				    unsigned int plane,                        \
+				    struct mbuf_mem *mem,                      \
+				    size_t offset,                             \
+				    size_t len)                                \
+		{                                                              \
+			return -ENOSYS;                                        \
+		}                                                              \
+	};
+
+
+#define MBUF_CODED_VIDEO_FRAME_TRAITS_DEF(_T, _info, _cbs)                     \
+	template <> struct FrameTraits<struct _T> {                            \
+		using FrameType = struct _T;                                   \
+		using InfoType = struct _info;                                 \
+		using CbsType = struct _cbs;                                   \
+		static constexpr Frame::Type Type = Frame::Type::CODED_VIDEO;  \
+		MBUF_VIDEO_FRAME_TRAITS_DEF(_T, _info, _cbs)                   \
+		static int addNalu(FrameType *q,                               \
+				   struct mbuf_mem *mem,                       \
+				   size_t offset,                              \
+				   const struct vdef_nalu *nalu)               \
+		{                                                              \
+			return _T##_add_nalu(q, mem, offset, nalu);            \
+		}                                                              \
+		static int insertNalu(FrameType *q,                            \
+				      struct mbuf_mem *mem,                    \
+				      size_t offset,                           \
+				      const struct vdef_nalu *nalu,            \
+				      unsigned int index)                      \
+		{                                                              \
+			return _T##_insert_nalu(q, mem, offset, nalu, index);  \
+		}                                                              \
+		/* Not implemented (Raw video) */                              \
+		static int setPlane(FrameType *q,                              \
+				    unsigned int plane,                        \
+				    struct mbuf_mem *mem,                      \
+				    size_t offset,                             \
+				    size_t len)                                \
+		{                                                              \
+			return -ENOSYS;                                        \
+		}                                                              \
+	};
+
+
+#define MBUF_RAW_VIDEO_FRAME_TRAITS_DEF(_T, _info, _cbs)                       \
+	template <> struct FrameTraits<struct _T> {                            \
+		using FrameType = struct _T;                                   \
+		using InfoType = struct _info;                                 \
+		using CbsType = struct _cbs;                                   \
+		static constexpr Frame::Type Type = Frame::Type::RAW_VIDEO;    \
+		MBUF_VIDEO_FRAME_TRAITS_DEF(_T, _info, _cbs)                   \
+		static int setPlane(FrameType *q,                              \
+				    unsigned int plane,                        \
+				    struct mbuf_mem *mem,                      \
+				    size_t offset,                             \
+				    size_t len)                                \
+		{                                                              \
+			return _T##_set_plane(q, plane, mem, offset, len);     \
+		}                                                              \
+		/* Not implemented (Coded video) */                            \
+		static int addNalu(FrameType *q,                               \
+				   struct mbuf_mem *mem,                       \
+				   size_t offset,                              \
+				   const struct vdef_nalu *nalu)               \
+		{                                                              \
+			return -ENOSYS;                                        \
+		}                                                              \
+		static int insertNalu(FrameType *q,                            \
+				      struct mbuf_mem *mem,                    \
+				      size_t offset,                           \
+				      const struct vdef_nalu *nalu,            \
+				      unsigned int index)                      \
+		{                                                              \
+			return -ENOSYS;                                        \
+		}                                                              \
+	};
+
+
+MBUF_CODED_VIDEO_FRAME_TRAITS_DEF(mbuf_coded_video_frame,
+				  vdef_coded_frame,
+				  mbuf_coded_video_frame_cbs)
+MBUF_RAW_VIDEO_FRAME_TRAITS_DEF(mbuf_raw_video_frame,
+				vdef_raw_frame,
+				mbuf_raw_video_frame_cbs)
+MBUF_AUDIO_FRAME_TRAITS_DEF(mbuf_audio_frame, adef_frame, mbuf_audio_frame_cbs)
 
 
 template <typename T, typename InfoType, typename CbsType>
 class FrameImpl : public Frame {
-	FrameImpl(const FrameImpl &) = delete;
-	FrameImpl &operator=(const FrameImpl &) = delete;
-
-	using NewFunc = int (*)(const InfoType *, T **);
-	using UnrefFunc = int (*)(T *);
-	using CbsFunc = int (*)(T *, const CbsType *);
-	using RdLockFunc = int (*)(T *);
-	using RdUnlockFunc = int (*)(T *);
-	using WrLockFunc = int (*)(T *);
-	using WrUnlockFunc = int (*)(T *);
-	using SetMetadataFunc = int (*)(T *, struct vmeta_frame *);
-	using GetMetadataFunc = int (*)(T *, struct vmeta_frame **);
-	using UsesMemFromPool = int (*)(const T *,
-					const struct mbuf_pool *,
-					bool *,
-					bool *);
-	using FinalizeFunc = int (*)(T *);
-	using GetBufferFunc = int (*)(T *, const void **, size_t *);
-	using ReleaseBufferFunc = int (*)(T *, const void *);
-	using GetRWBufferFunc = int (*)(T *, void **, size_t *);
-	using AddAncillaryStringFunc = int (*)(T *, const char *, const char *);
-	using AddAncillaryBufferFunc = int (*)(T *,
-					       const char *,
-					       const void *,
-					       size_t len);
-	using AddAncillaryBufferWithCbsFunc =
-		int (*)(T *,
-			const char *,
-			const void *,
-			size_t len,
-			const struct mbuf_ancillary_data_cbs *cbs);
-	using AddAncillaryDataFunc = int (*)(T *, mbuf_ancillary_data *);
-	using GetAncillaryDataFunc = int (*)(T *,
-					     const char *,
-					     mbuf_ancillary_data **);
-	using RemoveAncillaryDataFunc = int (*)(T *, const char *);
-	using AddNaluFunc = int (*)(T *,
-				    struct mbuf_mem *,
-				    size_t,
-				    const struct vdef_nalu *);
-	using InsertNaluFunc = int (*)(T *,
-				       struct mbuf_mem *,
-				       size_t,
-				       const struct vdef_nalu *,
-				       unsigned int);
-	using SetPlaneFunc = int (*)(T *,
-				     unsigned int plane,
-				     struct mbuf_mem *mem,
-				     size_t offset,
-				     size_t len);
-	using SetBufferFunc = int (*)(T *,
-				      struct mbuf_mem *mem,
-				      size_t offset,
-				      size_t len);
-	using GetFrameInfoCodedFunc = int (*)(const T *,
-					      struct vdef_coded_frame *);
-	using GetFrameInfoRawFunc = int (*)(const T *, struct vdef_raw_frame *);
-	using GetFrameInfoAudioFunc = int (*)(const T *, struct adef_frame *);
-
 public:
-	FrameImpl(Type type, const InfoType *info) :
-			Frame(), mType(type), mF(nullptr)
+	using Traits = FrameTraits<T>;
+	using NativeFrame = typename Traits::FrameType;
+
+	explicit FrameImpl(const InfoType *info) : Frame()
 	{
-		enable();
-		if (newF)
-			newF(info, &mF);
+		Traits::create(&mFrame, info);
 	}
 
-	FrameImpl(Type type, T *existing) : Frame(), mType(type), mF(existing)
+	FrameImpl(T *existing, bool owner) :
+			Frame(), mFrame(existing), mOwner(owner)
 	{
-		enable();
 	}
 
 	~FrameImpl()
 	{
-		if (mF && unrefF)
-			unref();
+		if (mFrame && mOwner)
+			FrameImpl::unref();
 	}
 
-	FrameImpl(FrameImpl &) noexcept = delete;
+	void *getFramePtr() const override
+	{
+		return mFrame;
+	}
 
-	FrameImpl(FrameImpl &&) noexcept = delete;
-
-	FrameImpl &operator=(FrameImpl &) = delete;
-
-	FrameImpl &operator=(FrameImpl &&) = delete;
+	int ref() override
+	{
+		return Traits::ref(mFrame);
+	}
 
 	int unref() override
 	{
-		return unrefF ? unrefF(mF) : -ENOSYS;
+		return Traits::unref(mFrame);
 	}
 
 	Type getType() const override
 	{
-		return mType;
+		return Traits::Type;
 	}
 
 	int rdLock() override
 	{
-		return rdLockF ? rdLockF(mF) : -ENOSYS;
+		return Traits::rdLock(mFrame);
 	}
 
 	int rdUnlock() override
 	{
-		return rdUnlockF ? rdUnlockF(mF) : -ENOSYS;
+		return Traits::rdUnlock(mFrame);
 	}
 
 	int wrLock() override
 	{
-		return wrLockF ? wrLockF(mF) : -ENOSYS;
+		return Traits::wrLock(mFrame);
 	}
 
 	int wrUnlock() override
 	{
-		return wrUnlockF ? wrUnlockF(mF) : -ENOSYS;
+		return Traits::wrUnlock(mFrame);
 	}
 
-	int setMetadata(struct vmeta_frame *frame) override
+	int setMetadata(struct vmeta_frame *metadata) override
 	{
-		return setMetadataF ? setMetadataF(mF, frame) : -ENOSYS;
+		return Traits::setMetadata(mFrame, metadata);
 	}
 
-	int getMetadata(struct vmeta_frame **frame) override
+	int getMetadata(struct vmeta_frame **metadata) override
 	{
-		return getMetadataF ? getMetadataF(mF, frame) : -ENOSYS;
-	}
-
-	int addNalu(struct mbuf_mem *mem,
-		    size_t offset,
-		    const struct vdef_nalu *nalu) override
-	{
-		return addNaluF ? addNaluF(mF, mem, offset, nalu) : -ENOSYS;
-	}
-
-	int insertNalu(struct mbuf_mem *mem,
-		       size_t offset,
-		       const struct vdef_nalu *nalu,
-		       unsigned int index) override
-	{
-		return insertNaluF ? insertNaluF(mF, mem, offset, nalu, index)
-				   : -ENOSYS;
+		return Traits::getMetadata(mFrame, metadata);
 	}
 
 	int usesMemFromPool(const struct mbuf_pool *pool,
 			    bool *any,
 			    bool *all) override
 	{
-		return usesMemFromPoolF ? usesMemFromPoolF(mF, pool, any, all)
-					: -ENOSYS;
+		return Traits::usesMemFromPool(mFrame, pool, any, all);
 	}
 
 	int finalize() override
 	{
-		return finalizeF ? finalizeF(mF) : -ENOSYS;
+		return Traits::finalize(mFrame);
 	}
-
 
 	int getBuffer(const void **data, size_t *len) override
 	{
-		return getBufferF ? getBufferF(mF, data, len) : -ENOSYS;
+		return Traits::getBuffer(mFrame, data, len);
 	}
 
 	int releaseBuffer(const void *data) override
 	{
-		return releaseBufferF ? releaseBufferF(mF, data) : -ENOSYS;
+		return Traits::releaseBuffer(mFrame, data);
 	}
 
 	int getRWBuffer(void **data, size_t *len) override
 	{
-		return getRWBufferF ? getRWBufferF(mF, data, len) : -ENOSYS;
+		return Traits::getRWBuffer(mFrame, data, len);
 	}
 
 	int releaseRWBuffer(const void *data) override
 	{
-		return releaseBufferF ? releaseBufferF(mF, data) : -ENOSYS;
+		return Traits::releaseRWBuffer(mFrame, data);
 	}
 
 
 	int addAncillaryString(const char *name, const char *value) override
 	{
-		return addAncillaryStringF
-			       ? addAncillaryStringF(mF, name, value)
-			       : -ENOSYS;
+		return Traits::addAncillaryString(mFrame, name, value);
 	}
 
 	int addAncillaryBuffer(const char *name,
 			       const void *buffer,
 			       size_t len) override
 	{
-		return addAncillaryBufferF
-			       ? addAncillaryBufferF(mF, name, buffer, len)
-			       : -ENOSYS;
+		return Traits::addAncillaryBuffer(mFrame, name, buffer, len);
 	}
 
 	int addAncillaryBufferWithCbs(
@@ -245,100 +436,82 @@ public:
 		size_t len,
 		const struct mbuf_ancillary_data_cbs *cbs) override
 	{
-		return addAncillaryBufferWithCbsF
-			       ? addAncillaryBufferWithCbsF(
-					 mF, name, buffer, len, cbs)
-			       : -ENOSYS;
+		return Traits::addAncillaryBufferWithCbs(
+			mFrame, name, buffer, len, cbs);
 	}
 
 	int addAncillaryData(struct mbuf_ancillary_data *data) override
 	{
-		return addAncillaryDataF ? addAncillaryDataF(mF, data)
-					 : -ENOSYS;
+		return Traits::addAncillaryData(mFrame, data);
 	}
 
 	int getAncillaryData(const char *name,
 			     struct mbuf_ancillary_data **data) override
 	{
-		return getAncillaryDataF ? getAncillaryDataF(mF, name, data)
-					 : -ENOSYS;
+		return Traits::getAncillaryData(mFrame, name, data);
 	}
 
 	int removeAncillaryData(const char *name) override
 	{
-		return removeAncillaryDataF ? removeAncillaryDataF(mF, name)
-					    : -ENOSYS;
+		return Traits::removeAncillaryData(mFrame, name);
 	}
 
+	/* Coded only */
+	int addNalu(struct mbuf_mem *mem,
+		    size_t offset,
+		    const struct vdef_nalu *nalu) override
+	{
+		return Traits::addNalu(mFrame, mem, offset, nalu);
+	}
+	int insertNalu(struct mbuf_mem *mem,
+		       size_t offset,
+		       const struct vdef_nalu *nalu,
+		       unsigned int index) override
+	{
+		return Traits::insertNalu(mFrame, mem, offset, nalu, index);
+	}
+
+	/* Raw only */
 	int setPlane(unsigned int plane,
 		     struct mbuf_mem *mem,
 		     size_t offset,
 		     size_t len) override
 	{
-		return setPlaneF ? setPlaneF(mF, plane, mem, offset, len)
-				 : -ENOSYS;
+		return Traits::setPlane(mFrame, plane, mem, offset, len);
 	}
 
+	/* Audio only */
 	int setBuffer(struct mbuf_mem *mem, size_t offset, size_t len) override
 	{
-		return setBufferF ? setBufferF(mF, mem, offset, len) : -ENOSYS;
+		return Traits::setBuffer(mFrame, mem, offset, len);
 	}
 
+	/* Get frame info overrides */
 	int getFrameInfo(struct vdef_coded_frame *frame_info) const override
 	{
-		return getFrameInfoF.coded ? getFrameInfoF.coded(mF, frame_info)
-					   : -ENOSYS;
+		return getFrameInfoT(frame_info);
 	}
-
 	int getFrameInfo(struct vdef_raw_frame *frame_info) const override
 	{
-		return getFrameInfoF.raw ? getFrameInfoF.raw(mF, frame_info)
-					 : -ENOSYS;
+		return getFrameInfoT(frame_info);
 	}
-
 	int getFrameInfo(struct adef_frame *frame_info) const override
 	{
-		return getFrameInfoF.audio ? getFrameInfoF.audio(mF, frame_info)
-					   : -ENOSYS;
+		return getFrameInfoT(frame_info);
 	}
 
 private:
-	void enable();
+	NativeFrame *mFrame = nullptr;
+	bool mOwner = true;
 
-	Type mType;
-	T *mF;
-
-	NewFunc newF = nullptr;
-	UnrefFunc unrefF = nullptr;
-	CbsFunc cbsF = nullptr;
-	RdLockFunc rdLockF = nullptr;
-	RdUnlockFunc rdUnlockF = nullptr;
-	WrLockFunc wrLockF = nullptr;
-	WrUnlockFunc wrUnlockF = nullptr;
-	SetMetadataFunc setMetadataF = nullptr;
-	GetMetadataFunc getMetadataF = nullptr;
-	UsesMemFromPool usesMemFromPoolF = nullptr;
-	FinalizeFunc finalizeF = nullptr;
-	GetBufferFunc getBufferF = nullptr;
-	GetRWBufferFunc getRWBufferF = nullptr;
-	ReleaseBufferFunc releaseBufferF = nullptr;
-	ReleaseBufferFunc releaseRWBufferF = nullptr;
-	AddAncillaryStringFunc addAncillaryStringF = nullptr;
-	AddAncillaryBufferFunc addAncillaryBufferF = nullptr;
-	AddAncillaryBufferWithCbsFunc addAncillaryBufferWithCbsF = nullptr;
-	AddAncillaryDataFunc addAncillaryDataF = nullptr;
-	GetAncillaryDataFunc getAncillaryDataF = nullptr;
-	RemoveAncillaryDataFunc removeAncillaryDataF = nullptr;
-	AddNaluFunc addNaluF = nullptr;
-	InsertNaluFunc insertNaluF = nullptr;
-	SetPlaneFunc setPlaneF = nullptr;
-	SetBufferFunc setBufferF = nullptr;
-
-	struct {
-		GetFrameInfoCodedFunc coded = nullptr;
-		GetFrameInfoRawFunc raw = nullptr;
-		GetFrameInfoAudioFunc audio = nullptr;
-	} getFrameInfoF;
+	template <typename U> int getFrameInfoT([[maybe_unused]] U *info) const
+	{
+		return -ENOSYS;
+	}
+	int getFrameInfoT(InfoType *info) const
+	{
+		return Traits::getFrameInfo(mFrame, info);
+	}
 };
 
 

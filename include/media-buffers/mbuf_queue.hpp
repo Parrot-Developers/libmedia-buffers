@@ -27,6 +27,7 @@
 
 #pragma once
 
+#include <media-buffers/mbuf_frame.hpp>
 
 #include "mbuf_audio_frame.h"
 #include "mbuf_coded_video_frame.h"
@@ -51,8 +52,8 @@ class MBUF_API Queue {
 	Queue(const Queue &) = delete;
 	Queue &operator=(const Queue &) = delete;
 
-	Queue(Queue &&) = default;
-	Queue &operator=(Queue &&) = default;
+	Queue(Queue &&) = delete;
+	Queue &operator=(Queue &&) = delete;
 
 protected:
 	Queue() = default;
@@ -146,6 +147,7 @@ public:
 	 *
 	 * @return 0 on success, negative errno on error.
 	 */
+	virtual int pushFrame(const Frame *frame) = 0;
 	virtual int pushFrame(struct mbuf_coded_video_frame *frame) = 0;
 	virtual int pushFrame(struct mbuf_raw_video_frame *frame) = 0;
 	virtual int pushFrame(struct mbuf_audio_frame *frame) = 0;
@@ -163,6 +165,7 @@ public:
 	 *
 	 * @return 0 on success, negative errno on error.
 	 */
+	virtual int popFrame(std::unique_ptr<Frame> &frame) = 0;
 	virtual int popFrame(struct mbuf_coded_video_frame **frame) = 0;
 	virtual int popFrame(struct mbuf_raw_video_frame **frame) = 0;
 	virtual int popFrame(struct mbuf_audio_frame **frame) = 0;
@@ -179,6 +182,7 @@ public:
 	 *
 	 * @return 0 on success, negative errno on error.
 	 */
+	virtual int peekFrame(std::unique_ptr<Frame> &frame) = 0;
 	virtual int peekFrame(struct mbuf_coded_video_frame **frame) = 0;
 	virtual int peekFrame(struct mbuf_raw_video_frame **frame) = 0;
 	virtual int peekFrame(struct mbuf_audio_frame **frame) = 0;
@@ -198,6 +202,8 @@ public:
 	 *
 	 * @return 0 on success, negative errno on error.
 	 */
+	virtual int peekAtFrame(unsigned int index,
+				std::unique_ptr<Frame> &frame) = 0;
 	virtual int peekAtFrame(unsigned int index,
 				struct mbuf_coded_video_frame **frame) = 0;
 	virtual int peekAtFrame(unsigned int index,
@@ -234,10 +240,13 @@ public:
 	 *
 	 * @return 0 on success, negative errno on error.
 	 */
-	int
-	attachToLoop(struct pomp_loop *loop, pomp_evt_cb_t cb, void *userdata);
+	int attachToLoop(struct pomp_loop *loop,
+			 pomp_evt_cb_t cb,
+			 void *userdata) const;
 
-	int attachToLoop(pomp::Loop &loop, pomp_evt_cb_t cb, void *userdata);
+	int attachToLoop(const pomp::Loop &loop,
+			 pomp_evt_cb_t cb,
+			 void *userdata) const;
 
 	/**
 	 * Detach the queue's event from a pomp loop.
@@ -246,9 +255,9 @@ public:
 	 *
 	 * @return 0 on success, negative errno on error.
 	 */
-	int detachFromLoop(struct pomp_loop *loop);
+	int detachFromLoop(struct pomp_loop *loop) const;
 
-	int detachFromLoop(pomp::Loop &loop);
+	int detachFromLoop(const pomp::Loop &loop) const;
 
 	/**
 	 * Create a new media buffer queue of a specified type.

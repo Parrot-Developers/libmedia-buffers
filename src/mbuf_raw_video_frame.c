@@ -580,7 +580,7 @@ int mbuf_raw_video_frame_copy(struct mbuf_raw_video_frame *frame,
 	ssize_t tmp =
 		mbuf_raw_video_frame_get_packed_size(frame, remove_stride);
 	if (tmp < 0)
-		return tmp;
+		return (int)tmp;
 	size_t required_len = tmp;
 
 	ret = mbuf_base_frame_rdlock(&frame->base);

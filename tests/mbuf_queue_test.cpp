@@ -28,6 +28,7 @@
 #include "mbuf_test.h"
 #include "media-buffers/mbuf_queue.hpp"
 
+using mbuf::Frame;
 using mbuf::Queue;
 
 
@@ -46,7 +47,7 @@ constexpr Queue::Type allTypes[] = {
 };
 
 
-static void test_pop_audio(std::unique_ptr<Queue> &queuePtr)
+static void testPopAudio(std::unique_ptr<Queue> &queuePtr)
 {
 	size_t count = queuePtr->getCount();
 	struct mbuf_audio_frame *frame = nullptr;
@@ -64,7 +65,7 @@ static void test_pop_audio(std::unique_ptr<Queue> &queuePtr)
 }
 
 
-static void test_peek_at_audio(std::unique_ptr<Queue> &queuePtr)
+static void testPeekAtAudio(std::unique_ptr<Queue> &queuePtr)
 {
 	size_t count = queuePtr->getCount();
 	struct mbuf_audio_frame *frame = nullptr;
@@ -86,7 +87,7 @@ static void test_peek_at_audio(std::unique_ptr<Queue> &queuePtr)
 }
 
 
-static void test_peek_audio(std::unique_ptr<Queue> &queuePtr)
+static void testPeekAudio(std::unique_ptr<Queue> &queuePtr)
 {
 	size_t count = queuePtr->getCount();
 	struct mbuf_audio_frame *frame = nullptr;
@@ -102,7 +103,7 @@ static void test_peek_audio(std::unique_ptr<Queue> &queuePtr)
 }
 
 
-static size_t get_frame_size(const struct adef_frame *info)
+static size_t getFrameSize(const struct adef_frame *info)
 {
 	switch (info->format.encoding) {
 	case ADEF_ENCODING_PCM:
@@ -120,49 +121,76 @@ static size_t get_frame_size(const struct adef_frame *info)
 }
 
 
-static void set_buffer(struct mbuf_audio_frame *frame,
-		       struct mbuf_mem *base_mem)
+static void setBuffer(struct mbuf_audio_frame *frame, struct mbuf_mem *baseMem)
 {
-	struct adef_frame frame_info;
-	size_t buffer_size;
-	bool internal_mem = false;
+	struct adef_frame frameInfo;
+	size_t bufferSize;
+	bool internalMem = false;
 
-	int ret = mbuf_audio_frame_get_frame_info(frame, &frame_info);
+	int ret = mbuf_audio_frame_get_frame_info(frame, &frameInfo);
 	if (ret != 0)
 		return;
 
-	buffer_size = get_frame_size(&frame_info);
+	bufferSize = getFrameSize(&frameInfo);
 
-	if (!base_mem) {
-		ret = mbuf_mem_generic_new(buffer_size, &base_mem);
+	if (!baseMem) {
+		ret = mbuf_mem_generic_new(bufferSize, &baseMem);
 		CU_ASSERT_EQUAL(ret, 0);
 		if (ret != 0)
 			return;
-		internal_mem = true;
+		internalMem = true;
 	}
-	CU_ASSERT_PTR_NOT_NULL_FATAL(base_mem);
+	CU_ASSERT_PTR_NOT_NULL_FATAL(baseMem);
 
 
-	(void)mbuf_audio_frame_set_buffer(frame, base_mem, 0, buffer_size);
-	if (internal_mem)
-		mbuf_mem_unref(base_mem);
+	(void)mbuf_audio_frame_set_buffer(frame, baseMem, 0, bufferSize);
+	if (internalMem)
+		mbuf_mem_unref(baseMem);
 }
 
 
-static void test_push_audio(std::unique_ptr<Queue> &queuePtr)
+static void setBuffer(std::unique_ptr<Frame> &frame, struct mbuf_mem *baseMem)
+{
+	struct adef_frame frameInfo;
+	size_t bufferSize;
+	bool internalMem = false;
+
+	int ret = frame->getFrameInfo(&frameInfo);
+	if (ret != 0)
+		return;
+
+	bufferSize = getFrameSize(&frameInfo);
+
+	if (!baseMem) {
+		ret = mbuf_mem_generic_new(bufferSize, &baseMem);
+		CU_ASSERT_EQUAL(ret, 0);
+		if (ret != 0)
+			return;
+		internalMem = true;
+	}
+	CU_ASSERT_PTR_NOT_NULL_FATAL(baseMem);
+
+
+	(void)frame->setBuffer(baseMem, 0, bufferSize);
+	if (internalMem)
+		mbuf_mem_unref(baseMem);
+}
+
+
+static void testPushAudio(std::unique_ptr<Queue> &queuePtr)
 {
 	int count = queuePtr->getCount();
 	struct mbuf_audio_frame *frame = nullptr;
 	struct mbuf_audio_frame *nullFrame = nullptr;
-	struct adef_frame frame_info = {};
+	struct adef_frame frameInfo = {};
 	int ret = 0;
-	frame_info.format = adef_pcm_16b_44100hz_stereo;
-	frame_info.info.timestamp = frame_info.info.capture_timestamp =
+	frameInfo.format = adef_pcm_16b_44100hz_stereo;
+	frameInfo.info.timestamp = frameInfo.info.capture_timestamp =
 		rand() % 1000000;
-	frame_info.info.index = 33;
-	frame_info.info.timescale = 1000000;
+	frameInfo.info.index = 33;
+	frameInfo.info.timescale = 1000000;
 
-	ret = mbuf_audio_frame_new(&frame_info, &frame);
+	ret = mbuf_audio_frame_new(&frameInfo, &frame);
 	CU_ASSERT_EQUAL(ret, 0);
 	CU_ASSERT_PTR_NOT_NULL_FATAL(frame);
 
@@ -170,7 +198,7 @@ static void test_push_audio(std::unique_ptr<Queue> &queuePtr)
 	if (queuePtr->getType() == Queue::Type::AUDIO) {
 		CU_ASSERT_EQUAL(ret, -EBUSY);
 
-		set_buffer(frame, NULL);
+		setBuffer(frame, NULL);
 
 		ret = mbuf_audio_frame_finalize(frame);
 		CU_ASSERT_EQUAL(ret, 0);
@@ -191,7 +219,7 @@ static void test_push_audio(std::unique_ptr<Queue> &queuePtr)
 }
 
 
-static void test_pop_raw(std::unique_ptr<Queue> &queuePtr)
+static void testPopRaw(std::unique_ptr<Queue> &queuePtr)
 {
 	size_t count = queuePtr->getCount();
 	struct mbuf_raw_video_frame *frame = nullptr;
@@ -209,7 +237,7 @@ static void test_pop_raw(std::unique_ptr<Queue> &queuePtr)
 }
 
 
-static void test_peek_at_raw(std::unique_ptr<Queue> &queuePtr)
+static void testPeekAtRaw(std::unique_ptr<Queue> &queuePtr)
 {
 	size_t count = queuePtr->getCount();
 	struct mbuf_raw_video_frame *frame = nullptr;
@@ -231,7 +259,7 @@ static void test_peek_at_raw(std::unique_ptr<Queue> &queuePtr)
 }
 
 
-static void test_peek_raw(std::unique_ptr<Queue> &queuePtr)
+static void testPeekRaw(std::unique_ptr<Queue> &queuePtr)
 {
 	size_t count = queuePtr->getCount();
 	struct mbuf_raw_video_frame *frame = nullptr;
@@ -247,31 +275,26 @@ static void test_peek_raw(std::unique_ptr<Queue> &queuePtr)
 }
 
 
-static void set_planes(struct mbuf_raw_video_frame *frame,
-		       struct mbuf_mem *base_mem,
-		       struct mbuf_mem *p2mem,
-		       struct mbuf_mem *p3mem)
+static int create_planes(struct vdef_raw_frame &frameInfo,
+			 size_t plane_size[],
+			 size_t plane_stride[],
+			 size_t plane_height[],
+			 size_t plane_offset[],
+			 struct mbuf_mem *&baseMem,
+			 struct mbuf_mem *plane_mem[],
+			 struct mbuf_mem *p2mem,
+			 struct mbuf_mem *p3mem,
+			 bool &internalMem)
 {
-	struct vdef_raw_frame frame_info;
-	size_t plane_size[VDEF_RAW_MAX_PLANE_COUNT];
-	size_t plane_stride[VDEF_RAW_MAX_PLANE_COUNT] = {0};
-	size_t plane_height[VDEF_RAW_MAX_PLANE_COUNT];
-	struct mbuf_mem *plane_mem[VDEF_RAW_MAX_PLANE_COUNT];
-	size_t plane_offset[VDEF_RAW_MAX_PLANE_COUNT] = {0};
-	bool internal_mem = false;
+	int ret = 0;
 
-	int ret = mbuf_raw_video_frame_get_frame_info(frame, &frame_info);
-	CU_ASSERT_EQUAL(ret, 0);
-	if (ret != 0)
-		return;
-
-	if (!vdef_raw_format_cmp(&frame_info.format, &vdef_i420)) {
+	if (!vdef_raw_format_cmp(&frameInfo.format, &vdef_i420)) {
 		CU_FAIL("This test only operates on i420 frames");
-		return;
+		return -EPROTO;
 	}
 
-	ret = vdef_calc_raw_frame_size(&frame_info.format,
-				       &frame_info.info.resolution,
+	ret = vdef_calc_raw_frame_size(&frameInfo.format,
+				       &frameInfo.info.resolution,
 				       plane_stride,
 				       NULL,
 				       NULL,
@@ -280,71 +303,177 @@ static void set_planes(struct mbuf_raw_video_frame *frame,
 				       NULL);
 	CU_ASSERT_EQUAL(ret, 0);
 	if (ret != 0)
-		return;
+		return ret;
 	for (unsigned int i = 0; i < 3; i++) {
 		plane_height[i] = plane_size[i] / plane_stride[i];
-		plane_size[i] = plane_height[i] * frame_info.plane_stride[i];
+		plane_size[i] = plane_height[i] * frameInfo.plane_stride[i];
 	}
-	if (!base_mem) {
+	if (!baseMem) {
 		ret = mbuf_mem_generic_new(plane_size[0] + plane_size[1] +
 						   plane_size[2],
-					   &base_mem);
+					   &baseMem);
 		if (ret != 0)
-			return;
-		internal_mem = true;
+			return ret;
+		internalMem = true;
 	}
 	if (!p2mem && !p3mem) {
-		p3mem = p2mem = base_mem;
+		p3mem = p2mem = baseMem;
 		plane_offset[1] = plane_size[0];
 		plane_offset[2] = plane_size[0] + plane_size[1];
 	}
-	plane_mem[0] = base_mem;
+	plane_mem[0] = baseMem;
 	plane_mem[1] = p2mem;
 	plane_mem[2] = p3mem;
+	return 0;
+}
+
+
+static int setupMem(unsigned int i,
+		    const struct vdef_raw_frame &frameInfo,
+		    const size_t plane_size[],
+		    const size_t plane_stride[],
+		    const size_t plane_height[],
+		    const size_t plane_offset[],
+		    struct mbuf_mem *plane_mem[])
+{
+	int ret = 0;
+	void *plane;
+	size_t cap;
+
+	ret = mbuf_mem_get_data(plane_mem[i], &plane, &cap);
+	CU_ASSERT_EQUAL(ret, 0);
+	CU_ASSERT(plane_offset[i] + plane_size[i] <= cap);
+	if (ret != 0 || plane_offset[i] + plane_size[i] > cap)
+		return -EPROTO;
+	for (size_t j = 0; j < plane_height[i]; j++) {
+		auto dst = static_cast<uint8_t *>(plane);
+		dst += plane_offset[i];
+		dst += j * frameInfo.plane_stride[i];
+		memset(dst, i + 10, plane_stride[i]);
+		if (plane_stride[i] < frameInfo.plane_stride[i])
+			memset(dst + plane_stride[i],
+			       i + 20,
+			       frameInfo.plane_stride[i] - plane_stride[i]);
+	}
+	return 0;
+}
+
+
+static void setPlanes(struct mbuf_raw_video_frame *frame,
+		      struct mbuf_mem *baseMem,
+		      struct mbuf_mem *p2mem,
+		      struct mbuf_mem *p3mem)
+{
+	struct vdef_raw_frame frameInfo;
+	size_t plane_size[VDEF_RAW_MAX_PLANE_COUNT];
+	size_t plane_stride[VDEF_RAW_MAX_PLANE_COUNT] = {0};
+	size_t plane_height[VDEF_RAW_MAX_PLANE_COUNT];
+	struct mbuf_mem *plane_mem[VDEF_RAW_MAX_PLANE_COUNT];
+	size_t plane_offset[VDEF_RAW_MAX_PLANE_COUNT] = {0};
+	bool internalMem = false;
+
+	int ret = mbuf_raw_video_frame_get_frame_info(frame, &frameInfo);
+	CU_ASSERT_EQUAL(ret, 0);
+	if (ret != 0)
+		return;
+
+	ret = create_planes(frameInfo,
+			    plane_size,
+			    plane_stride,
+			    plane_height,
+			    plane_offset,
+			    baseMem,
+			    plane_mem,
+			    p2mem,
+			    p3mem,
+			    internalMem);
+	if (ret < 0)
+		return;
 
 	for (unsigned int i = 0; i < 3; i++) {
-		void *plane;
-		size_t cap;
-		ret = mbuf_mem_get_data(plane_mem[i], &plane, &cap);
-		CU_ASSERT_EQUAL(ret, 0);
-		CU_ASSERT(plane_offset[i] + plane_size[i] <= cap);
-		if (ret != 0 || plane_offset[i] + plane_size[i] > cap)
+		ret = setupMem(i,
+			       frameInfo,
+			       plane_size,
+			       plane_stride,
+			       plane_height,
+			       plane_offset,
+			       plane_mem);
+		if (ret != 0)
 			return;
-		for (size_t j = 0; j < plane_height[i]; j++) {
-			auto dst = static_cast<uint8_t *>(plane);
-			dst += plane_offset[i];
-			dst += j * frame_info.plane_stride[i];
-			memset(dst, i + 10, plane_stride[i]);
-			if (plane_stride[i] < frame_info.plane_stride[i])
-				memset(dst + plane_stride[i],
-				       i + 20,
-				       frame_info.plane_stride[i] -
-					       plane_stride[i]);
-		}
 		ret = mbuf_raw_video_frame_set_plane(
 			frame, i, plane_mem[i], plane_offset[i], plane_size[i]);
 		CU_ASSERT_EQUAL(ret, 0);
 	}
-	if (internal_mem)
-		mbuf_mem_unref(base_mem);
+	if (internalMem)
+		mbuf_mem_unref(baseMem);
 }
 
 
-static void test_push_raw(std::unique_ptr<Queue> &queuePtr)
+static void setPlanes(std::unique_ptr<Frame> &frame,
+		      struct mbuf_mem *baseMem,
+		      struct mbuf_mem *p2mem,
+		      struct mbuf_mem *p3mem)
 {
-	struct vdef_raw_frame frame_info = {};
-	frame_info.format = vdef_i420;
-	frame_info.info.resolution.width = MBUF_TEST_WIDTH;
-	frame_info.info.resolution.height = MBUF_TEST_HEIGHT;
-	frame_info.plane_stride[0] = MBUF_TEST_WIDTH;
-	frame_info.plane_stride[1] = MBUF_TEST_WIDTH / 2;
-	frame_info.plane_stride[2] = MBUF_TEST_WIDTH / 2;
+	struct vdef_raw_frame frameInfo;
+	size_t plane_size[VDEF_RAW_MAX_PLANE_COUNT];
+	size_t plane_stride[VDEF_RAW_MAX_PLANE_COUNT] = {0};
+	size_t plane_height[VDEF_RAW_MAX_PLANE_COUNT];
+	struct mbuf_mem *plane_mem[VDEF_RAW_MAX_PLANE_COUNT];
+	size_t plane_offset[VDEF_RAW_MAX_PLANE_COUNT] = {0};
+	bool internalMem = false;
+
+	int ret = frame->getFrameInfo(&frameInfo);
+	CU_ASSERT_EQUAL(ret, 0);
+	if (ret != 0)
+		return;
+
+	ret = create_planes(frameInfo,
+			    plane_size,
+			    plane_stride,
+			    plane_height,
+			    plane_offset,
+			    baseMem,
+			    plane_mem,
+			    p2mem,
+			    p3mem,
+			    internalMem);
+	if (ret < 0)
+		return;
+
+	for (unsigned int i = 0; i < 3; i++) {
+		ret = setupMem(i,
+			       frameInfo,
+			       plane_size,
+			       plane_stride,
+			       plane_height,
+			       plane_offset,
+			       plane_mem);
+		if (ret != 0)
+			return;
+		ret = frame->setPlane(
+			i, plane_mem[i], plane_offset[i], plane_size[i]);
+		CU_ASSERT_EQUAL(ret, 0);
+	}
+	if (internalMem)
+		mbuf_mem_unref(baseMem);
+}
+
+
+static void testPushRaw(std::unique_ptr<Queue> &queuePtr)
+{
+	struct vdef_raw_frame frameInfo = {};
+	frameInfo.format = vdef_i420;
+	frameInfo.info.resolution.width = MBUF_TEST_WIDTH;
+	frameInfo.info.resolution.height = MBUF_TEST_HEIGHT;
+	frameInfo.plane_stride[0] = MBUF_TEST_WIDTH;
+	frameInfo.plane_stride[1] = MBUF_TEST_WIDTH / 2;
+	frameInfo.plane_stride[2] = MBUF_TEST_WIDTH / 2;
 	int count = queuePtr->getCount();
 	struct mbuf_raw_video_frame *frame = nullptr;
 	struct mbuf_raw_video_frame *nullFrame = nullptr;
 	int ret = 0;
 
-	ret = mbuf_raw_video_frame_new(&frame_info, &frame);
+	ret = mbuf_raw_video_frame_new(&frameInfo, &frame);
 	CU_ASSERT_EQUAL(ret, 0);
 	CU_ASSERT_PTR_NOT_NULL_FATAL(frame);
 
@@ -352,7 +481,7 @@ static void test_push_raw(std::unique_ptr<Queue> &queuePtr)
 	if (queuePtr->getType() == Queue::Type::RAW_VIDEO) {
 		CU_ASSERT_EQUAL(ret, -EBUSY);
 
-		set_planes(frame, NULL, NULL, NULL);
+		setPlanes(frame, NULL, NULL, NULL);
 
 		ret = mbuf_raw_video_frame_finalize(frame);
 		CU_ASSERT_EQUAL(ret, 0);
@@ -373,13 +502,13 @@ static void test_push_raw(std::unique_ptr<Queue> &queuePtr)
 }
 
 
-static void add_nalu(struct mbuf_coded_video_frame *frame,
-		     struct mbuf_mem *mem,
-		     size_t offset,
-		     enum h264_nalu_type type,
-		     enum h264_slice_type slice_type,
-		     int value,
-		     int importance)
+static int createNalu(struct mbuf_mem *mem,
+		      size_t offset,
+		      enum h264_nalu_type type,
+		      enum h264_slice_type slice_type,
+		      int value,
+		      int importance,
+		      struct vdef_nalu &nalu)
 {
 	void *coded_data;
 	uint8_t *data;
@@ -388,37 +517,221 @@ static void add_nalu(struct mbuf_coded_video_frame *frame,
 	data = static_cast<uint8_t *>(coded_data);
 
 	if (ret != 0 || cap < (MBUF_TEST_SIZE + offset))
-		return;
+		return -EPROTO;
 
 	memset(data + offset, value, MBUF_TEST_SIZE);
-	struct vdef_nalu nalu = {};
 	nalu.size = MBUF_TEST_SIZE;
 	nalu.importance = importance;
 	nalu.h264.type = type;
 	nalu.h264.slice_type = slice_type;
 
+	return 0;
+}
+
+
+static void addNalu(std::unique_ptr<Frame> &frame,
+		    struct mbuf_mem *mem,
+		    size_t offset,
+		    enum h264_nalu_type type,
+		    enum h264_slice_type slice_type,
+		    int value,
+		    int importance)
+{
+	struct vdef_nalu nalu = {};
+	int ret = createNalu(
+		mem, offset, type, slice_type, value, importance, nalu);
+	if (ret != 0)
+		return;
+
+	frame->addNalu(mem, offset, &nalu);
+}
+
+
+static void addNalu(struct mbuf_coded_video_frame *frame,
+		    struct mbuf_mem *mem,
+		    size_t offset,
+		    enum h264_nalu_type type,
+		    enum h264_slice_type slice_type,
+		    int value,
+		    int importance)
+{
+	struct vdef_nalu nalu = {};
+	int ret = createNalu(
+		mem, offset, type, slice_type, value, importance, nalu);
+	if (ret != 0)
+		return;
+
 	(void)mbuf_coded_video_frame_add_nalu(frame, mem, offset, &nalu);
 }
 
 
-static void add_default_nalu(struct mbuf_coded_video_frame *frame)
+template <typename T> static void addDefaultNalu(T &frame)
 {
 	struct mbuf_mem *mem;
 	int ret = mbuf_mem_generic_new(MBUF_TEST_SIZE, &mem);
 	CU_ASSERT_EQUAL(ret, 0);
 	CU_ASSERT_PTR_NOT_NULL_FATAL(mem);
-	add_nalu(frame,
-		 mem,
-		 0,
-		 H264_NALU_TYPE_SPS,
-		 H264_SLICE_TYPE_UNKNOWN,
-		 1,
-		 0);
+	addNalu(frame,
+		mem,
+		0,
+		H264_NALU_TYPE_SPS,
+		H264_SLICE_TYPE_UNKNOWN,
+		1,
+		0);
 	(void)mbuf_mem_unref(mem);
 }
 
 
-static void test_pop_coded(std::unique_ptr<Queue> &queuePtr)
+static void testPopAbstract(std::unique_ptr<Queue> &queuePtr)
+{
+	std::unique_ptr<Frame> frame;
+	size_t count = queuePtr->getCount();
+	int ret = 0;
+
+	ret = queuePtr->popFrame(frame);
+	CU_ASSERT_EQUAL(ret, (count > 0) ? 0 : -EAGAIN);
+}
+
+
+static void testPeekAtAbstract(std::unique_ptr<Queue> &queuePtr)
+{
+	std::unique_ptr<Frame> frame;
+	size_t count = queuePtr->getCount();
+	int ret = 0;
+
+	ret = queuePtr->peekAtFrame(0, frame);
+	CU_ASSERT_EQUAL(ret, (count > 0) ? 0 : -EAGAIN);
+
+	for (size_t i = 0; i < count; i++) {
+		ret = queuePtr->peekAtFrame(i, frame);
+		CU_ASSERT_EQUAL(ret, 0);
+	}
+}
+
+
+static void testPeekAbstract(std::unique_ptr<Queue> &queuePtr)
+{
+	std::unique_ptr<Frame> frame;
+	size_t count = queuePtr->getCount();
+	int ret = 0;
+
+	ret = queuePtr->peekFrame(frame);
+	CU_ASSERT_EQUAL(ret, (count > 0) ? 0 : -EAGAIN);
+}
+
+
+static void testPushAbstractCoded(std::unique_ptr<Queue> &queuePtr)
+{
+	struct vdef_coded_frame frameInfo = {};
+	frameInfo.format = vdef_h264_byte_stream;
+	frameInfo.info.resolution.width = MBUF_TEST_WIDTH;
+	frameInfo.info.resolution.height = MBUF_TEST_HEIGHT;
+	int count = queuePtr->getCount();
+	int ret = 0;
+
+	std::unique_ptr<Frame> frame = Frame::create(&frameInfo);
+	CU_ASSERT_EQUAL(ret, 0);
+	CU_ASSERT_NOT_EQUAL(frame, nullptr);
+
+	ret = queuePtr->pushFrame(frame.get());
+	if (queuePtr->getType() == Queue::Type::CODED_VIDEO) {
+		CU_ASSERT_EQUAL(ret, -EBUSY);
+
+		addDefaultNalu(frame);
+		ret = frame->finalize();
+		CU_ASSERT_EQUAL(ret, 0);
+
+		ret = queuePtr->pushFrame(frame.get());
+		CU_ASSERT_EQUAL(ret, 0);
+
+		CU_ASSERT_EQUAL(queuePtr->getCount(), count + 1);
+	} else {
+		CU_ASSERT_EQUAL(ret, -ENOSYS);
+		CU_ASSERT_EQUAL(queuePtr->getCount(), count);
+	}
+}
+
+
+static void testPushAbstractRaw(std::unique_ptr<Queue> &queuePtr)
+{
+	struct vdef_raw_frame frameInfo = {};
+	frameInfo.format = vdef_i420;
+	frameInfo.info.resolution.width = MBUF_TEST_WIDTH;
+	frameInfo.info.resolution.height = MBUF_TEST_HEIGHT;
+	frameInfo.plane_stride[0] = MBUF_TEST_WIDTH;
+	frameInfo.plane_stride[1] = MBUF_TEST_WIDTH / 2;
+	frameInfo.plane_stride[2] = MBUF_TEST_WIDTH / 2;
+	int count = queuePtr->getCount();
+	int ret = 0;
+
+	std::unique_ptr<Frame> frame = Frame::create(&frameInfo);
+	CU_ASSERT_EQUAL(ret, 0);
+	CU_ASSERT_NOT_EQUAL(frame, nullptr);
+
+	ret = queuePtr->pushFrame(frame.get());
+	if (queuePtr->getType() == Queue::Type::RAW_VIDEO) {
+		CU_ASSERT_EQUAL(ret, -EBUSY);
+
+		setPlanes(frame, NULL, NULL, NULL);
+
+		ret = frame->finalize();
+		CU_ASSERT_EQUAL(ret, 0);
+
+		ret = queuePtr->pushFrame(frame.get());
+		CU_ASSERT_EQUAL(ret, 0);
+
+		CU_ASSERT_EQUAL(queuePtr->getCount(), count + 1);
+	} else {
+		CU_ASSERT_EQUAL(ret, -ENOSYS);
+		CU_ASSERT_EQUAL(queuePtr->getCount(), count);
+	}
+}
+
+
+static void testPushAbstractAudio(std::unique_ptr<Queue> &queuePtr)
+{
+	int count = queuePtr->getCount();
+	struct adef_frame frameInfo = {};
+	int ret = 0;
+	frameInfo.format = adef_pcm_16b_44100hz_stereo;
+	frameInfo.info.timestamp = frameInfo.info.capture_timestamp =
+		rand() % 1000000;
+	frameInfo.info.index = 33;
+	frameInfo.info.timescale = 1000000;
+
+	std::unique_ptr<Frame> frame = Frame::create(&frameInfo);
+	CU_ASSERT_EQUAL(ret, 0);
+	CU_ASSERT_NOT_EQUAL(frame, nullptr);
+
+	ret = queuePtr->pushFrame(frame.get());
+	if (queuePtr->getType() == Queue::Type::AUDIO) {
+		CU_ASSERT_EQUAL(ret, -EBUSY);
+
+		setBuffer(frame, NULL);
+
+		ret = frame->finalize();
+		CU_ASSERT_EQUAL(ret, 0);
+
+		ret = queuePtr->pushFrame(frame.get());
+		CU_ASSERT_EQUAL(ret, 0);
+
+		CU_ASSERT_EQUAL(queuePtr->getCount(), count + 1);
+	} else {
+		CU_ASSERT_EQUAL(ret, -ENOSYS);
+		CU_ASSERT_EQUAL(queuePtr->getCount(), count);
+	}
+}
+
+
+static void testPushAbstract(std::unique_ptr<Queue> &queuePtr)
+{
+	testPushAbstractCoded(queuePtr);
+	testPushAbstractRaw(queuePtr);
+	testPushAbstractAudio(queuePtr);
+}
+
+
+static void testPopCoded(std::unique_ptr<Queue> &queuePtr)
 {
 	size_t count = queuePtr->getCount();
 	struct mbuf_coded_video_frame *frame = nullptr;
@@ -436,7 +749,7 @@ static void test_pop_coded(std::unique_ptr<Queue> &queuePtr)
 }
 
 
-static void test_peek_at_coded(std::unique_ptr<Queue> &queuePtr)
+static void testPeekAtCoded(std::unique_ptr<Queue> &queuePtr)
 {
 	size_t count = queuePtr->getCount();
 	struct mbuf_coded_video_frame *frame = nullptr;
@@ -458,7 +771,7 @@ static void test_peek_at_coded(std::unique_ptr<Queue> &queuePtr)
 }
 
 
-static void test_peek_coded(std::unique_ptr<Queue> &queuePtr)
+static void testPeekCoded(std::unique_ptr<Queue> &queuePtr)
 {
 	size_t count = queuePtr->getCount();
 	struct mbuf_coded_video_frame *frame = nullptr;
@@ -474,18 +787,18 @@ static void test_peek_coded(std::unique_ptr<Queue> &queuePtr)
 }
 
 
-static void test_push_coded(std::unique_ptr<Queue> &queuePtr)
+static void testPushCoded(std::unique_ptr<Queue> &queuePtr)
 {
-	struct vdef_coded_frame frame_info = {};
-	frame_info.format = vdef_h264_byte_stream;
-	frame_info.info.resolution.width = MBUF_TEST_WIDTH;
-	frame_info.info.resolution.height = MBUF_TEST_HEIGHT;
+	struct vdef_coded_frame frameInfo = {};
+	frameInfo.format = vdef_h264_byte_stream;
+	frameInfo.info.resolution.width = MBUF_TEST_WIDTH;
+	frameInfo.info.resolution.height = MBUF_TEST_HEIGHT;
 	int count = queuePtr->getCount();
 	struct mbuf_coded_video_frame *frame = nullptr;
 	struct mbuf_coded_video_frame *nullFrame = nullptr;
 	int ret = 0;
 
-	ret = mbuf_coded_video_frame_new(&frame_info, &frame);
+	ret = mbuf_coded_video_frame_new(&frameInfo, &frame);
 	CU_ASSERT_EQUAL(ret, 0);
 	CU_ASSERT_PTR_NOT_NULL_FATAL(frame);
 
@@ -493,7 +806,7 @@ static void test_push_coded(std::unique_ptr<Queue> &queuePtr)
 	if (queuePtr->getType() == Queue::Type::CODED_VIDEO) {
 		CU_ASSERT_EQUAL(ret, -EBUSY);
 
-		add_default_nalu(frame);
+		addDefaultNalu(frame);
 
 		ret = mbuf_coded_video_frame_finalize(frame);
 		CU_ASSERT_EQUAL(ret, 0);
@@ -514,76 +827,99 @@ static void test_push_coded(std::unique_ptr<Queue> &queuePtr)
 }
 
 
-static void test_audio_methods(std::unique_ptr<Queue> &queuePtr)
+static void testAudioMethods(std::unique_ptr<Queue> &queuePtr)
 {
-	test_peek_audio(queuePtr);
-	test_peek_at_audio(queuePtr);
+	testPeekAudio(queuePtr);
+	testPeekAtAudio(queuePtr);
 
 	for (size_t i = 0; i < MBUF_TEST_DEFAULT_FRAME_TEST_COUNT; i++)
-		test_push_audio(queuePtr);
+		testPushAudio(queuePtr);
 
-	test_peek_audio(queuePtr);
-	test_peek_at_audio(queuePtr);
+	testPeekAudio(queuePtr);
+	testPeekAtAudio(queuePtr);
 
 	for (size_t i = 0; i < MBUF_TEST_DEFAULT_FRAME_TEST_COUNT; i++)
-		test_pop_audio(queuePtr);
+		testPopAudio(queuePtr);
 
-	test_peek_audio(queuePtr);
-	test_peek_at_audio(queuePtr);
+	testPeekAudio(queuePtr);
+	testPeekAtAudio(queuePtr);
 
-	test_push_audio(queuePtr);
+	testPushAudio(queuePtr);
 	CU_ASSERT_EQUAL(queuePtr->flush(), 0);
 	CU_ASSERT_EQUAL(queuePtr->getCount(), 0);
 }
 
 
-static void test_raw_methods(std::unique_ptr<Queue> &queuePtr)
+static void testRawMethods(std::unique_ptr<Queue> &queuePtr)
 {
-	test_peek_raw(queuePtr);
-	test_peek_at_raw(queuePtr);
+	testPeekRaw(queuePtr);
+	testPeekAtRaw(queuePtr);
 
 	for (size_t i = 0; i < MBUF_TEST_DEFAULT_FRAME_TEST_COUNT; i++)
-		test_push_raw(queuePtr);
+		testPushRaw(queuePtr);
 
-	test_peek_raw(queuePtr);
-	test_peek_at_raw(queuePtr);
+	testPeekRaw(queuePtr);
+	testPeekAtRaw(queuePtr);
 
 	for (size_t i = 0; i < MBUF_TEST_DEFAULT_FRAME_TEST_COUNT; i++)
-		test_pop_raw(queuePtr);
+		testPopRaw(queuePtr);
 
-	test_peek_raw(queuePtr);
-	test_peek_at_raw(queuePtr);
+	testPeekRaw(queuePtr);
+	testPeekAtRaw(queuePtr);
 
-	test_push_raw(queuePtr);
+	testPushRaw(queuePtr);
 	CU_ASSERT_EQUAL(queuePtr->flush(), 0);
 	CU_ASSERT_EQUAL(queuePtr->getCount(), 0);
 }
 
 
-static void test_coded_methods(std::unique_ptr<Queue> &queuePtr)
+static void testAbstractMethods(std::unique_ptr<Queue> &queuePtr)
 {
-	test_peek_coded(queuePtr);
-	test_peek_at_coded(queuePtr);
+	testPeekAbstract(queuePtr);
+	testPeekAtAbstract(queuePtr);
 
 	for (size_t i = 0; i < MBUF_TEST_DEFAULT_FRAME_TEST_COUNT; i++)
-		test_push_coded(queuePtr);
+		testPushAbstract(queuePtr);
 
-	test_peek_coded(queuePtr);
-	test_peek_at_coded(queuePtr);
+	testPeekAbstract(queuePtr);
+	testPeekAtAbstract(queuePtr);
 
 	for (size_t i = 0; i < MBUF_TEST_DEFAULT_FRAME_TEST_COUNT; i++)
-		test_pop_coded(queuePtr);
+		testPopAbstract(queuePtr);
 
-	test_peek_coded(queuePtr);
-	test_peek_at_coded(queuePtr);
+	testPeekAbstract(queuePtr);
+	testPeekAtAbstract(queuePtr);
 
-	test_push_coded(queuePtr);
+	testPushAbstract(queuePtr);
 	CU_ASSERT_EQUAL(queuePtr->flush(), 0);
 	CU_ASSERT_EQUAL(queuePtr->getCount(), 0);
 }
 
 
-static inline void test_get_event(std::unique_ptr<Queue> &queuePtr)
+static void testCodedMethods(std::unique_ptr<Queue> &queuePtr)
+{
+	testPeekCoded(queuePtr);
+	testPeekAtCoded(queuePtr);
+
+	for (size_t i = 0; i < MBUF_TEST_DEFAULT_FRAME_TEST_COUNT; i++)
+		testPushCoded(queuePtr);
+
+	testPeekCoded(queuePtr);
+	testPeekAtCoded(queuePtr);
+
+	for (size_t i = 0; i < MBUF_TEST_DEFAULT_FRAME_TEST_COUNT; i++)
+		testPopCoded(queuePtr);
+
+	testPeekCoded(queuePtr);
+	testPeekAtCoded(queuePtr);
+
+	testPushCoded(queuePtr);
+	CU_ASSERT_EQUAL(queuePtr->flush(), 0);
+	CU_ASSERT_EQUAL(queuePtr->getCount(), 0);
+}
+
+
+static inline void testGetEvent(std::unique_ptr<Queue> &queuePtr)
 {
 	struct pomp_evt *evt = nullptr;
 
@@ -593,8 +929,8 @@ static inline void test_get_event(std::unique_ptr<Queue> &queuePtr)
 }
 
 
-static inline void test_queue_initialized(std::unique_ptr<Queue> &queuePtr,
-					  Queue::Type t)
+static inline void testQueueInitialized(std::unique_ptr<Queue> &queuePtr,
+					Queue::Type t)
 {
 	int ret = 0;
 	struct mbuf_coded_video_frame_queue *coded = nullptr;
@@ -607,7 +943,7 @@ static inline void test_queue_initialized(std::unique_ptr<Queue> &queuePtr,
 	CU_ASSERT_NOT_EQUAL_FATAL(queuePtr, nullptr);
 	CU_ASSERT_EQUAL(queuePtr->getType(), t);
 	CU_ASSERT_PTR_NOT_NULL(queuePtr->getQueuePtr());
-	test_get_event(queuePtr);
+	testGetEvent(queuePtr);
 	CU_ASSERT(queuePtr->getCount() >= 0);
 
 	ret = queuePtr->getCQueue(&coded);
@@ -643,16 +979,16 @@ static inline void test_queue_initialized(std::unique_ptr<Queue> &queuePtr,
 }
 
 
-static inline void test_queue_wrapped(std::unique_ptr<Queue> &queuePtr,
-				      Queue::Type t,
-				      void *existing)
+static inline void testQueueWrapped(std::unique_ptr<Queue> &queuePtr,
+				    Queue::Type t,
+				    void *existing)
 {
-	test_queue_initialized(queuePtr, t);
+	testQueueInitialized(queuePtr, t);
 	CU_ASSERT_EQUAL(*queuePtr, existing);
 }
 
 
-static void destroy_raw_queue(Queue::Type type, void *ptr)
+static void destroyRawQueue(Queue::Type type, void *ptr)
 {
 	if (!ptr)
 		return;
@@ -674,43 +1010,43 @@ static void destroy_raw_queue(Queue::Type type, void *ptr)
 
 
 template <typename ArgsType>
-static void create_with_args(Queue::Type type, ArgsType &args)
+static void createWithArgs(Queue::Type type, ArgsType &args)
 {
 	std::unique_ptr<Queue> queuePtr = Queue::createWithArgs(&args, true);
-	test_queue_initialized(queuePtr, type);
+	testQueueInitialized(queuePtr, type);
 
 	std::unique_ptr<Queue> queuePtr2 = Queue::createWithArgs(&args, false);
-	test_queue_initialized(queuePtr2, type);
+	testQueueInitialized(queuePtr2, type);
 	void *raw = queuePtr2->getQueuePtr();
-	destroy_raw_queue(type, raw);
+	destroyRawQueue(type, raw);
 }
 
 
-struct test_event_cb_arg {
+struct testEventCbArg {
 	std::unique_ptr<Queue> queuePtr;
 	size_t count;
 	bool called;
 };
 
 
-static void queue_evt_cb(struct pomp_evt *evt, void *userdata)
+static void queueEvtCb(struct pomp_evt *evt, void *userdata)
 {
-	auto args = reinterpret_cast<struct test_event_cb_arg *>(userdata);
+	auto args = reinterpret_cast<struct testEventCbArg *>(userdata);
 
 	args->called = true;
 
 	CU_ASSERT_EQUAL(args->queuePtr->getCount(), args->count);
 	for (size_t i = 0; i < MBUF_TEST_DEFAULT_FRAME_TEST_COUNT; i++) {
-		test_pop_coded(args->queuePtr);
-		test_pop_raw(args->queuePtr);
-		test_pop_audio(args->queuePtr);
+		testPopCoded(args->queuePtr);
+		testPopRaw(args->queuePtr);
+		testPopAudio(args->queuePtr);
 
 		args->count--;
 	}
 }
 
 
-static void test_mbuf_queue_create()
+static void testMbufQueueCreate()
 {
 	try {
 		std::unique_ptr<Queue> queuePtr =
@@ -724,7 +1060,7 @@ static void test_mbuf_queue_create()
 		try {
 			std::unique_ptr<Queue> queuePtr =
 				Queue::create(t, true);
-			test_queue_initialized(queuePtr, t);
+			testQueueInitialized(queuePtr, t);
 
 		} catch (const std::bad_alloc &) {
 			CU_FAIL("bad alloc");
@@ -733,9 +1069,9 @@ static void test_mbuf_queue_create()
 		try {
 			std::unique_ptr<Queue> queuePtr =
 				Queue::create(t, false);
-			test_queue_initialized(queuePtr, t);
+			testQueueInitialized(queuePtr, t);
 			void *raw = queuePtr->getQueuePtr();
-			destroy_raw_queue(t, raw);
+			destroyRawQueue(t, raw);
 
 		} catch (const std::bad_alloc &) {
 			CU_FAIL("bad alloc");
@@ -744,32 +1080,32 @@ static void test_mbuf_queue_create()
 }
 
 
-static void test_mbuf_queue_create_with_args()
+static void testMbufQueueCreateWithArgs()
 {
 	try {
 		struct mbuf_coded_video_frame_queue_args args = {};
-		create_with_args(Queue::Type::CODED_VIDEO, args);
+		createWithArgs(Queue::Type::CODED_VIDEO, args);
 	} catch (const std::bad_alloc &) {
 		CU_FAIL("coded queue creation failed");
 	}
 
 	try {
 		struct mbuf_raw_video_frame_queue_args args = {};
-		create_with_args(Queue::Type::RAW_VIDEO, args);
+		createWithArgs(Queue::Type::RAW_VIDEO, args);
 	} catch (const std::bad_alloc &) {
 		CU_FAIL("raw queue creation failed");
 	}
 
 	try {
 		struct mbuf_audio_frame_queue_args args = {};
-		create_with_args(Queue::Type::AUDIO, args);
+		createWithArgs(Queue::Type::AUDIO, args);
 	} catch (const std::bad_alloc &) {
 		CU_FAIL("audio queue creation failed");
 	}
 }
 
 
-static void test_mbuf_queue_args_features()
+static void testMbufQueueArgsFeatures()
 {
 	/* Test max_frames functionality (frame dropping) */
 	{
@@ -784,15 +1120,15 @@ static void test_mbuf_queue_args_features()
 		}
 
 		/* Create two frames */
-		struct vdef_coded_frame frame_info = {};
-		frame_info.format = vdef_h264_byte_stream;
+		struct vdef_coded_frame frameInfo = {};
+		frameInfo.format = vdef_h264_byte_stream;
 		struct mbuf_coded_video_frame *frame1 = nullptr;
 		struct mbuf_coded_video_frame *frame2 = nullptr;
-		mbuf_coded_video_frame_new(&frame_info, &frame1);
-		add_default_nalu(frame1);
+		mbuf_coded_video_frame_new(&frameInfo, &frame1);
+		addDefaultNalu(frame1);
 		mbuf_coded_video_frame_finalize(frame1);
-		mbuf_coded_video_frame_new(&frame_info, &frame2);
-		add_default_nalu(frame2);
+		mbuf_coded_video_frame_new(&frameInfo, &frame2);
+		addDefaultNalu(frame2);
 		mbuf_coded_video_frame_finalize(frame2);
 
 		/* Push frame1 */
@@ -831,11 +1167,11 @@ static void test_mbuf_queue_args_features()
 			CU_FAIL("coded queue creation failed");
 		}
 
-		struct vdef_coded_frame frame_info = {};
-		frame_info.format = vdef_h264_byte_stream;
+		struct vdef_coded_frame frameInfo = {};
+		frameInfo.format = vdef_h264_byte_stream;
 		struct mbuf_coded_video_frame *frame = nullptr;
-		mbuf_coded_video_frame_new(&frame_info, &frame);
-		add_default_nalu(frame);
+		mbuf_coded_video_frame_new(&frameInfo, &frame);
+		addDefaultNalu(frame);
 		mbuf_coded_video_frame_finalize(frame);
 
 		/* Push should fail with -EPROTO due to the filter */
@@ -848,7 +1184,7 @@ static void test_mbuf_queue_args_features()
 }
 
 
-static void test_mbuf_queue_wrap_existing()
+static void testMbufQueueWrapExisting()
 {
 	try {
 		struct mbuf_coded_video_frame_queue *queue = nullptr;
@@ -858,7 +1194,7 @@ static void test_mbuf_queue_wrap_existing()
 
 		std::unique_ptr<Queue> queuePtr =
 			Queue::wrapExisting(queue, true);
-		test_queue_wrapped(queuePtr, Queue::Type::CODED_VIDEO, queue);
+		testQueueWrapped(queuePtr, Queue::Type::CODED_VIDEO, queue);
 
 		CU_ASSERT_EQUAL(Queue::wrapExisting(nullQueue, true), nullptr);
 
@@ -874,7 +1210,7 @@ static void test_mbuf_queue_wrap_existing()
 
 		std::unique_ptr<Queue> queuePtr =
 			Queue::wrapExisting(queue, true);
-		test_queue_wrapped(queuePtr, Queue::Type::RAW_VIDEO, queue);
+		testQueueWrapped(queuePtr, Queue::Type::RAW_VIDEO, queue);
 
 		CU_ASSERT_EQUAL(Queue::wrapExisting(nullQueue, true), nullptr);
 
@@ -890,7 +1226,7 @@ static void test_mbuf_queue_wrap_existing()
 
 		std::unique_ptr<Queue> queuePtr =
 			Queue::wrapExisting(queue, true);
-		test_queue_wrapped(queuePtr, Queue::Type::AUDIO, queue);
+		testQueueWrapped(queuePtr, Queue::Type::AUDIO, queue);
 
 		CU_ASSERT_EQUAL(Queue::wrapExisting(nullQueue, true), nullptr);
 
@@ -900,7 +1236,7 @@ static void test_mbuf_queue_wrap_existing()
 }
 
 
-static void test_mbuf_queue_methods()
+static void testMbufQueueMethods()
 {
 	for (Queue::Type t : allTypes) {
 		std::unique_ptr<Queue> queuePtr;
@@ -911,18 +1247,19 @@ static void test_mbuf_queue_methods()
 			CU_FAIL_FATAL("bad alloc");
 		}
 
-		test_coded_methods(queuePtr);
-		test_raw_methods(queuePtr);
-		test_audio_methods(queuePtr);
+		testCodedMethods(queuePtr);
+		testRawMethods(queuePtr);
+		testAudioMethods(queuePtr);
+		testAbstractMethods(queuePtr);
 	}
 }
 
 
-static void test_mbuf_queue_loop_methods()
+static void testMbufQueueLoopMethods()
 {
 	int ret = 0;
 	struct pomp_loop *loop = pomp_loop_new();
-	struct test_event_cb_arg args;
+	struct testEventCbArg args;
 
 	for (Queue::Type t : allTypes) {
 		try {
@@ -938,14 +1275,14 @@ static void test_mbuf_queue_loop_methods()
 		ret = args.queuePtr->detachFromLoop(loop);
 		CU_ASSERT_EQUAL(ret, 0);
 
-		ret = args.queuePtr->attachToLoop(loop, queue_evt_cb, &args);
+		ret = args.queuePtr->attachToLoop(loop, queueEvtCb, &args);
 		CU_ASSERT_EQUAL(ret, 0);
 
 		for (size_t i = 0; i < MBUF_TEST_DEFAULT_FRAME_TEST_COUNT;
 		     i++) {
-			test_push_coded(args.queuePtr);
-			test_push_raw(args.queuePtr);
-			test_push_audio(args.queuePtr);
+			testPushCoded(args.queuePtr);
+			testPushRaw(args.queuePtr);
+			testPushAudio(args.queuePtr);
 		}
 
 		ret = pomp_loop_wait_and_process(loop, 100);
@@ -963,11 +1300,11 @@ static void test_mbuf_queue_loop_methods()
 
 
 CU_TestInfo g_mbuf_test_queue_cpp[] = {
-	{(char *)"queue_create", &test_mbuf_queue_create},
-	{(char *)"queue_create_with_args", &test_mbuf_queue_create_with_args},
-	{(char *)"queue_args_features", &test_mbuf_queue_args_features},
-	{(char *)"queue_wrap_existing", &test_mbuf_queue_wrap_existing},
-	{(char *)"queue_methods", &test_mbuf_queue_methods},
-	{(char *)"queue_loops_methods", &test_mbuf_queue_loop_methods},
+	{(char *)"queue_create", &testMbufQueueCreate},
+	{(char *)"queue_create_with_args", &testMbufQueueCreateWithArgs},
+	{(char *)"queue_args_features", &testMbufQueueArgsFeatures},
+	{(char *)"queue_wrap_existing", &testMbufQueueWrapExisting},
+	{(char *)"queue_methods", &testMbufQueueMethods},
+	{(char *)"queue_loops_methods", &testMbufQueueLoopMethods},
 	CU_TEST_INFO_NULL,
 };

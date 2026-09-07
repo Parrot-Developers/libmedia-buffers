@@ -94,6 +94,24 @@ MBUF_QUEUE_TRAITS_DEF(mbuf_raw_video_frame, mbuf_raw_video_frame, RAW_VIDEO)
 MBUF_QUEUE_TRAITS_DEF(mbuf_audio_frame, mbuf_audio_frame, AUDIO)
 
 
+static inline bool frameMatchQueue(mbuf::Frame::Type frameType,
+				   mbuf::Queue::Type queueType)
+{
+	if (frameType == mbuf::Frame::Type::CODED_VIDEO &&
+	    queueType == mbuf::Queue::Type::CODED_VIDEO)
+		return true;
+
+	if (frameType == mbuf::Frame::Type::RAW_VIDEO &&
+	    queueType == mbuf::Queue::Type::RAW_VIDEO)
+		return true;
+
+	if (frameType == mbuf::Frame::Type::AUDIO &&
+	    queueType == mbuf::Queue::Type::AUDIO)
+		return true;
+
+	return false;
+}
+
 /*
  * Template implementation of the Queue interface.
  * This class is internal to this file (or could be in an internal header).
@@ -153,6 +171,14 @@ public:
 	}
 
 	/* Push overrides */
+	int pushFrame(const Frame *frame) override
+	{
+		if (frameMatchQueue(frame->getType(), getType())) {
+			return pushT(static_cast<T *>(frame->getFramePtr()));
+		}
+
+		return -ENOSYS;
+	}
 	int pushFrame(struct mbuf_coded_video_frame *frame) override
 	{
 		return pushT(frame);
@@ -167,6 +193,17 @@ public:
 	}
 
 	/* Pop overrides */
+	int popFrame(std::unique_ptr<Frame> &frame) override
+	{
+		T *f;
+		int ret = popT(&f);
+		if (ret < 0)
+			return ret;
+
+		frame = Frame::wrapExisting(f, true);
+
+		return ret;
+	}
 	int popFrame(struct mbuf_coded_video_frame **frame) override
 	{
 		return popT(frame);
@@ -181,6 +218,17 @@ public:
 	}
 
 	/* Peek overrides */
+	int peekFrame(std::unique_ptr<Frame> &frame) override
+	{
+		T *f;
+		int ret = peekT(&f);
+		if (ret < 0)
+			return ret;
+
+		frame = Frame::wrapExisting(f, true);
+
+		return ret;
+	}
 	int peekFrame(struct mbuf_coded_video_frame **frame) override
 	{
 		return peekT(frame);
@@ -195,6 +243,18 @@ public:
 	}
 
 	/* PeekAt overrides */
+	int peekAtFrame(unsigned int index,
+			std::unique_ptr<Frame> &frame) override
+	{
+		T *f;
+		int ret = peekAtT(index, &f);
+		if (ret < 0)
+			return ret;
+
+		frame = Frame::wrapExisting(f, true);
+
+		return ret;
+	}
 	int peekAtFrame(unsigned int index,
 			struct mbuf_coded_video_frame **frame) override
 	{
@@ -240,7 +300,7 @@ private:
 	{
 		return Traits::push(mQueue, frame);
 	}
-	template <typename U> int pushT(U *frame)
+	template <typename U> int pushT([[maybe_unused]] U *frame) const
 	{
 		return -ENOSYS;
 	}
@@ -249,7 +309,7 @@ private:
 	{
 		return Traits::pop(mQueue, frame);
 	}
-	template <typename U> int popT(U **frame)
+	template <typename U> int popT([[maybe_unused]] U **frame) const
 	{
 		return -ENOSYS;
 	}
@@ -258,7 +318,7 @@ private:
 	{
 		return Traits::peek(mQueue, frame);
 	}
-	template <typename U> int peekT(U **frame)
+	template <typename U> int peekT([[maybe_unused]] U **frame) const
 	{
 		return -ENOSYS;
 	}
@@ -267,7 +327,9 @@ private:
 	{
 		return Traits::peek_at(mQueue, index, frame);
 	}
-	template <typename U> int peekAtT(unsigned int index, U **frame)
+	template <typename U>
+	int peekAtT([[maybe_unused]] unsigned int index,
+		    [[maybe_unused]] U **frame) const
 	{
 		return -ENOSYS;
 	}
@@ -279,7 +341,7 @@ private:
 		*queue = mQueue;
 		return 0;
 	}
-	template <typename Q> int getCQueueT(Q **queue) const
+	template <typename Q> int getCQueueT([[maybe_unused]] Q **queue) const
 	{
 		return -ENOSYS;
 	}

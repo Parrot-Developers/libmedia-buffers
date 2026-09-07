@@ -61,7 +61,7 @@ Queue::createWithArgs(struct mbuf_coded_video_frame_queue_args *args,
 	int ret = QueueTraits<T>::create(&q, args);
 	if (ret < 0)
 		return nullptr;
-	return std::unique_ptr<Queue>(new QueueImpl<T>(q, owner));
+	return std::make_unique<QueueImpl<T>>(q, owner);
 }
 
 
@@ -73,7 +73,7 @@ Queue::createWithArgs(struct mbuf_raw_video_frame_queue_args *args, bool owner)
 	int ret = QueueTraits<T>::create(&q, args);
 	if (ret < 0)
 		return nullptr;
-	return std::unique_ptr<Queue>(new QueueImpl<T>(q, owner));
+	return std::make_unique<QueueImpl<T>>(q, owner);
 }
 
 
@@ -85,7 +85,7 @@ Queue::createWithArgs(struct mbuf_audio_frame_queue_args *args, bool owner)
 	int ret = QueueTraits<T>::create(&q, args);
 	if (ret < 0)
 		return nullptr;
-	return std::unique_ptr<Queue>(new QueueImpl<T>(q, owner));
+	return std::make_unique<QueueImpl<T>>(q, owner);
 }
 
 
@@ -95,9 +95,8 @@ Queue::wrapExisting(struct mbuf_coded_video_frame_queue *existingNativeQueue,
 {
 	if (!existingNativeQueue)
 		return nullptr;
-	return std::unique_ptr<Queue>(
-		new QueueImpl<struct mbuf_coded_video_frame>(
-			existingNativeQueue, owner));
+	return std::make_unique<QueueImpl<struct mbuf_coded_video_frame>>(
+		existingNativeQueue, owner);
 }
 
 
@@ -107,9 +106,8 @@ Queue::wrapExisting(struct mbuf_raw_video_frame_queue *existingNativeQueue,
 {
 	if (!existingNativeQueue)
 		return nullptr;
-	return std::unique_ptr<Queue>(
-		new QueueImpl<struct mbuf_raw_video_frame>(existingNativeQueue,
-							   owner));
+	return std::make_unique<QueueImpl<struct mbuf_raw_video_frame>>(
+		existingNativeQueue, owner);
 }
 
 
@@ -119,14 +117,14 @@ Queue::wrapExisting(struct mbuf_audio_frame_queue *existingNativeQueue,
 {
 	if (!existingNativeQueue)
 		return nullptr;
-	return std::unique_ptr<Queue>(new QueueImpl<struct mbuf_audio_frame>(
-		existingNativeQueue, owner));
+	return std::make_unique<QueueImpl<struct mbuf_audio_frame>>(
+		existingNativeQueue, owner);
 }
 
 
 int Queue::attachToLoop(struct pomp_loop *loop,
 			pomp_evt_cb_t cb,
-			void *userdata)
+			void *userdata) const
 {
 	struct pomp_evt *evt = nullptr;
 	int ret = getEvent(&evt);
@@ -136,13 +134,15 @@ int Queue::attachToLoop(struct pomp_loop *loop,
 }
 
 
-int Queue::attachToLoop(pomp::Loop &loop, pomp_evt_cb_t cb, void *userdata)
+int Queue::attachToLoop(const pomp::Loop &loop,
+			pomp_evt_cb_t cb,
+			void *userdata) const
 {
 	return attachToLoop(loop.get(), cb, userdata);
 }
 
 
-int Queue::detachFromLoop(struct pomp_loop *loop)
+int Queue::detachFromLoop(struct pomp_loop *loop) const
 {
 	struct pomp_evt *evt = nullptr;
 	if (getEvent(&evt) < 0 || !pomp_evt_is_attached(evt, loop))
@@ -151,7 +151,7 @@ int Queue::detachFromLoop(struct pomp_loop *loop)
 }
 
 
-int Queue::detachFromLoop(pomp::Loop &loop)
+int Queue::detachFromLoop(const pomp::Loop &loop) const
 {
 	return detachFromLoop(loop.get());
 }

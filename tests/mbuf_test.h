@@ -51,6 +51,7 @@
 extern CU_TestInfo g_mbuf_test_ancillary[];
 extern CU_TestInfo g_mbuf_test_audio_frame[];
 extern CU_TestInfo g_mbuf_test_coded_video_frame[];
+extern CU_TestInfo g_mbuf_test_frame_cpp[];
 extern CU_TestInfo g_mbuf_test_implem[];
 extern CU_TestInfo g_mbuf_test_pool[];
 extern CU_TestInfo g_mbuf_test_queue_cpp[];
