@@ -29,6 +29,7 @@
 #include <errno.h>
 #include <stdbool.h>
 #include <stdlib.h>
+#include <string.h>
 
 #include "internal/mbuf_mem_internal.h"
 
